@@ -223,6 +223,8 @@ tr.row { cursor: pointer; }
 tr.row:hover td { background: var(--surface-2); }
 tr.row.open td { background: var(--accent-soft); }
 tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
+.edad-tag { display: inline-block; margin-left: 6px; font-size: 10.5px; font-weight: 600; padding: 0 6px; border-radius: 99px; background: var(--warn-bg); color: var(--warn-ink); vertical-align: 1px; }
+.p .edad-tag { margin-left: 4px; }
 .flag { color: var(--warn-ink); margin-left: 4px; display: inline-flex; vertical-align: -1px; }
 .flag svg { width: 12px; height: 12px; }
 .det { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; }
@@ -405,7 +407,19 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
   const muestraId = (s) => String(s ?? "").toUpperCase().replace(/\s+/g, "").trim();
   const docId = (m, f) => `${m.replace(/[^A-Za-z0-9_-]/g, "-")}__${f}`;
   const fcDe = (codigo) => { const m = String(codigo ?? "").match(/(\d+(?:[.,]\d+)?)/); return m ? Number(m[1].replace(",", ".")) : null; };
-  const bucket = (edad) => edad <= 14 ? "r7" : edad <= 42 ? "r28" : "r56";
+  // R7d: 1 a 27 días · R28d: 28 a 55 días · R56d: 56 días o más. Las edades distintas de 7, 28 y 56 se señalan.
+  const bucket = (edad) => edad < 28 ? "r7" : edad < 56 ? "r28" : "r56";
+  const EDAD_STD = { r7: 7, r28: 28, r56: 56 };
+  const LBL = { r7: "R7d", r28: "R28d", r56: "R56d" };
+  // Edades de falla distintas a la nominal, por grupo: { r7: [8], r28: [27] }
+  function edadesRaras(ensayos) {
+    const out = {};
+    for (const e of ensayos || []) { const b = bucket(e[0]); if (e[0] !== EDAD_STD[b]) (out[b] = out[b] || []).includes(e[0]) || out[b].push(e[0]); }
+    for (const b in out) out[b].sort((x, y) => x - y);
+    return out;
+  }
+  const diasTxt = (arr) => arr.join(", ") + (arr.length === 1 && arr[0] === 1 ? " día" : " días");
+  const edadTag = (arr) => arr && arr.length ? `<span class="edad-tag" title="Fallada a ${diasTxt(arr)}">${arr.join("/")} d</span>` : "";
   const serieDe = (m) => (String(m).match(/^[A-Z]+/) || ["?"])[0];
   const natCmp = (a, b) => a.localeCompare(b, "es", { numeric: true });
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -751,6 +765,8 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       const fc = fcDe(rec.codigo || cur?.codigo);
       if (fc != null && fc !== state.obra.fc) alertas.push(`f'c de la mezcla (${fc} kg/cm²) distinto al f'c de la obra (${state.obra.fc}). Se evalúa con ${fc}.`);
       for (const [b, lbl] of AGES) { const n = rec["n" + b.slice(1)]; if (n === 1) alertas.push(`Solo 1 probeta a ${lbl}.`); }
+      const raras = edadesRaras(rec.ensayos);
+      for (const b in raras) alertas.push(`${LBL[b]} fallado a ${diasTxt(raras[b])}, no a ${EDAD_STD[b]}.`);
       if (!cur) {
         const otras = (porNumero.get(rec.muestra) || []).filter((f) => f !== rec.fecha);
         if (otras.length) alertas.push(`Ya existe ${rec.muestra} con otra fecha (${otras.map(dmy).join(", ")}). Revisa si es la misma muestra.`);
@@ -771,8 +787,10 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     return { ...parsed, items };
   }
 
-  function traza(n, rec, archivo) {
+  function traza(n, rec, archivo, b) {
     const partes = [n ? `Promedio de ${plural(n, "probeta", "probetas")}` : "Valor tomado del formato"];
+    const raras = b ? edadesRaras(rec.ensayos)[b] : null;
+    if (raras) partes.push(`Fallado a ${diasTxt(raras)}`);
     if (rec.remision) partes.push(`Remisión: ${rec.remision}`);
     partes.push(`Muestreo: ${dmy(rec.fecha)}`, archivo === MANUAL ? `Registrado manualmente el ${hoy()}` : `Cargado desde ${archivo} el ${hoy()}`);
     return partes.join(" — ");
@@ -791,14 +809,14 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
         const rec = it.rec;
         if (it.tipo === "nueva") {
           const d = { muestra: rec.muestra, fecha: rec.fecha, codigo: rec.codigo || "", localizacion: rec.localizacion || "", remision: rec.remision || "", obs: rec.obs || "", ensayos: rec.ensayos || [], notas: {}, creado: now, actualizado: now };
-          for (const [b] of AGES) { const nk = "n" + b.slice(1); d[b] = rec[b] ?? null; d[nk] = rec[nk] ?? null; if (rec[b] != null) d.notas[b] = traza(rec[nk], rec, p.archivo); }
+          for (const [b] of AGES) { const nk = "n" + b.slice(1); d[b] = rec[b] ?? null; d[nk] = rec[nk] ?? null; if (rec[b] != null) d.notas[b] = traza(rec[nk], rec, p.archivo, b); }
           await putMuestra(it.k, d); nuevas.push(rec.muestra); continue;
         }
         const cur = state.muestras.get(it.k); if (!cur) continue;
         const d = JSON.parse(JSON.stringify(cur)); d.notas = d.notas || {};
         let changed = false;
         const aplicar = [...it.cambios, ...it.difs.filter((x) => x.reemplazar)];
-        for (const c of aplicar) { const nk = "n" + c.b.slice(1); d[c.b] = c.despues; d[nk] = rec[nk] ?? null; d.notas[c.b] = traza(rec[nk], rec, p.archivo) + (c.antes != null ? ` (antes ${fmt(c.antes)})` : ""); changed = true; }
+        for (const c of aplicar) { const nk = "n" + c.b.slice(1); d[c.b] = c.despues; d[nk] = rec[nk] ?? null; d.notas[c.b] = traza(rec[nk], rec, p.archivo, c.b) + (c.antes != null ? ` (antes ${fmt(c.antes)})` : ""); changed = true; }
         for (const f of ["codigo", "localizacion", "remision"]) if (!d[f] && rec[f]) { d[f] = rec[f]; changed = true; }
         const ens = mergeEnsayos(d.ensayos, rec.ensayos); if (ens.length !== (d.ensayos || []).length) { d.ensayos = ens; changed = true; }
         if (!changed) continue;
@@ -840,7 +858,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
   function filtradas() {
     const { serie, estado: est, q } = state.filtro; const nq = norm(q);
     return [...state.muestras.entries()].map(([id, m]) => ({ id, ...m, _e: estado(m) }))
-      .filter((m) => (serie === "todas" || serieDe(m.muestra) === serie) && (est === "todos" || m._e === est) && (!nq || norm(m.muestra + " " + m.localizacion + " " + (m.remision || "")).includes(nq)))
+      .filter((m) => (serie === "todas" || serieDe(m.muestra) === serie) && (est === "todos" || (est === "edad" ? Object.keys(edadesRaras(m.ensayos)).length > 0 : m._e === est)) && (!nq || norm(m.muestra + " " + m.localizacion + " " + (m.remision || "")).includes(nq)))
       .sort((a, b) => b.fecha.localeCompare(a.fecha) || natCmp(b.muestra, a.muestra));
   }
   function segSerie() {
@@ -899,6 +917,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     const rows = filtradas();
     const noCumplen = rows.filter((m) => m._e === "no");
     const pend = rows.filter((m) => m._e === "wait");
+    const raras = rows.map((m) => [m, edadesRaras(m.ensayos)]).filter(([, r]) => Object.keys(r).length);
     const thr = round2(state.obra.fc * 0.85);
     main.innerHTML = `<div class="stack">
       <div class="filters" style="margin:0">${segSerie()}<span class="spacer"></span><button class="btn primary" type="button" data-go="cargar">${ICON.cargar} Cargar resultados</button></div>
@@ -911,6 +930,9 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
           ${noCumplen.length ? `<div class="list">${noCumplen.slice(0, 8).map((m) => `<div class="list-row"><span class="ck crit" aria-hidden="true">✕</span><div class="nm"><b>${esc(m.muestra)}</b><span>${dmy(m.fecha)} · ${esc(m.localizacion || "sin localización")}</span></div><div class="rt2"><b>${fmt(m.r28)}</b><span class="hint">de ${fmt(round2(fcMuestra(m) * 0.85))}</span></div></div>`).join("")}</div>
             ${noCumplen.length > 8 ? `<button class="btn sm" type="button" data-go="planilla" data-estado-go="no" style="margin-top:10px">Ver las ${noCumplen.length}</button>` : ""}`
             : `<div class="empty"><b>Todas cumplen</b>Ninguna muestra con R28d está por debajo de 0,85 f'c.</div>`}
+          ${raras.length ? `<div class="card-hd" style="margin:18px 0 8px"><h3>Falladas a otra edad<small>${raras.length}</small></h3></div>
+          <div class="list">${raras.slice(0, 5).map(([m, r]) => `<div class="list-row"><span class="ck" style="border:2px solid var(--warn);color:var(--warn-ink)" aria-hidden="true">!</span><div class="nm"><b>${esc(m.muestra)}</b><span>${dmy(m.fecha)} · ${esc(m.localizacion || "")}</span></div><div class="rt2">${Object.entries(r).map(([b, a]) => `<span class="hint">${LBL[b]} a ${diasTxt(a)}</span>`).join("")}</div></div>`).join("")}</div>
+          ${raras.length > 5 ? `<button class="btn sm" type="button" data-go="planilla" data-estado-go="edad" style="margin-top:10px">Ver las ${raras.length}</button>` : ""}` : ""}
           <div class="card-hd" style="margin:18px 0 8px"><h3>Pendientes de 28 días<small>${pend.length}</small></h3></div>
           ${pend.length ? `<div class="list">${pend.slice(0, 5).map((m) => `<div class="list-row"><span class="ck" style="border:2px solid var(--line-2)" aria-hidden="true"></span><div class="nm"><b>${esc(m.muestra)}</b><span>${dmy(m.fecha)} · ${esc(m.localizacion || "")}</span></div><div class="rt2"><span class="hint">R7d</span><b>${fmt(m.r7)}</b></div></div>`).join("")}</div>` : `<p class="hint" style="margin:0">No hay muestras esperando el ensayo a 28 días.</p>`}
         </section>
@@ -939,7 +961,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
         const [tc, tt] = { nueva: ["new", "Nueva"], actualiza: ["good", "Resultados"], difiere: ["crit", "Distinto"] }[it.tipo];
         return `<div class="ritem"><span class="tag"><span class="pill ${tc}">${tt}</span></span>
           <div><h3>${esc(r.muestra)} <small>${dmy(r.fecha)} · ${esc(r.localizacion || "sin localización")}${r.remision ? " · " + esc(r.remision) : ""}</small></h3>
-          ${it.cambios.length ? `<div class="changes">${it.cambios.map((c) => `<span><span class="lbl">${lbl(c.b)}</span><b class="num">${fmt(c.despues)}</b></span>`).join("")}</div>` : ""}${difs}
+          ${it.cambios.length ? `<div class="changes">${it.cambios.map((c) => `<span><span class="lbl">${lbl(c.b)}</span><b class="num">${fmt(c.despues)}</b>${edadTag(edadesRaras(r.ensayos)[c.b])}</span>`).join("")}</div>` : ""}${difs}
           ${it.alertas.length ? `<ul class="alerts">${it.alertas.map((a) => `<li>${ICON.warn}<span>${esc(a)}</span></li>`).join("")}</ul>` : ""}</div></div>`;
       }).join("");
       const nada = !visibles.length;
@@ -968,10 +990,11 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
         <div class="card-hd"><div><h2 id="cTit">Archivo del laboratorio</h2><p>Sube el Excel que descargas de SGS, los informes PDF de resultados (cuando aún no están en la base de datos) o el propio RT-037. Puedes elegir varios archivos a la vez. Nada se guarda hasta que revises los cambios.</p></div></div>
         <div class="drop" id="drop" role="button" tabindex="0" data-act="pick">${ICON.cargar}<b>Arrastra los archivos aquí</b><span>Excel (.xlsx, .xlsm, .csv) o PDF de SGS · o haz clic para elegirlos</span></div>
         <div class="rules">
-          <div><span class="eyebrow">Edad ≤ 14 días</span><b>R7d</b><span class="hint">Promedio de las probetas del grupo</span></div>
-          <div><span class="eyebrow">Edad 15 a 42 días</span><b>R28d</b><span class="hint">Define si cumple 0,85 f'c</span></div>
-          <div><span class="eyebrow">Edad &gt; 42 días</span><b>R56d</b><span class="hint">Ensayo de verificación</span></div>
+          <div><span class="eyebrow">1 a 27 días</span><b>R7d</b><span class="hint">Nominal: 7 días</span></div>
+          <div><span class="eyebrow">28 a 55 días</span><b>R28d</b><span class="hint">Nominal: 28 días. Define si cumple 0,85 f'c</span></div>
+          <div><span class="eyebrow">56 días o más</span><b>R56d</b><span class="hint">Nominal: 56 días</span></div>
         </div>
+        <p class="hint" style="margin:10px 0 0">Si una probeta se falla a una edad distinta de 7, 28 o 56 días, la revisión lo avisa y la planilla muestra la edad junto al resultado.</p>
       </section>
       ${manualHtml()}
       </div></div>`;
@@ -984,7 +1007,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     if (!ens.length) return `<span class="hint">Escribe la edad y la resistencia de cada probeta para ver los promedios.</span>`;
     return AGES.map(([b, lbl]) => {
       const v = ens.filter((e) => bucket(e[0]) === b).map((e) => e[1]);
-      return v.length ? `<span>R${lbl.replace(" d", "d")} <b>${fmt(avg(v))}</b> <span class="hint">(${plural(v.length, "probeta", "probetas")})</span></span>` : "";
+      return v.length ? `<span>${LBL[b]} <b>${fmt(avg(v))}</b>${edadTag(edadesRaras(ens)[b])} <span class="hint">(${plural(v.length, "probeta", "probetas")})</span></span>` : "";
     }).join("");
   }
   function manualHtml() {
@@ -1059,22 +1082,23 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       const ens = (m.ensayos || []).filter((e) => bucket(e[0]) === b);
       const nota = m.notas && m.notas[b];
       if (!ens.length && m[b] == null) return "";
-      return `<div class="grp"><b>${lbl}</b>${ens.length ? ens.map((e) => `<span class="p" title="Edad ${e[0]} días${e[2] ? " · rotura " + dmy(e[2]) : ""}">${fmt(e[1])}</span>`).join("") : `<span class="p">${fmt(m[b])}</span><span class="nt">Sin detalle de probetas (valor del formato).</span>`}
+      return `<div class="grp"><b>${lbl}</b>${ens.length ? ens.map((e) => `<span class="p" title="Edad ${e[0]} días${e[2] ? " · rotura " + dmy(e[2]) : ""}">${fmt(e[1])}${e[0] !== EDAD_STD[b] ? edadTag([e[0]]) : ""}</span>`).join("") : `<span class="p">${fmt(m[b])}</span><span class="nt">Sin detalle de probetas (valor del formato).</span>`}
         ${nota ? `<span class="nt">${esc(nota)}</span>` : ""}</div>`;
     }).join("") || `<span class="hint">Sin ensayos todavía.</span>`;
   }
   function tablaHtml(rows) {
     if (!state.muestras.size) return `<div class="empty"><b>${state.mode === "loading" ? "Cargando planilla…" : "Aún no hay muestras"}</b>${state.mode === "loading" ? "" : "Carga el RT-037 o el archivo del laboratorio para empezar."}</div>`;
     if (!rows.length) return `<div class="empty"><b>Sin resultados</b>Ninguna muestra coincide con el filtro.</div>`;
-    const cell = (v, thr) => v == null ? `<td class="n empty-v">—</td>` : `<td class="n${v <= thr ? " below" : ""}">${fmt(v)}</td>`;
+    const cell = (v, thr, raras) => v == null ? `<td class="n empty-v">—</td>` : `<td class="n${v <= thr ? " below" : ""}">${fmt(v)}${edadTag(raras)}</td>`;
     const body = rows.map((m) => {
+      const rr = edadesRaras(m.ensayos);
       const fcM = fcMuestra(m); const thr = round2(fcM * 0.85); const open = state.abierto === m.id;
       const fcFlag = fcDe(m.codigo) != null && fcDe(m.codigo) !== state.obra.fc;
       const [cls, txt] = ESTADO[m._e];
       let tr = `<tr class="row${open ? " open" : ""}" data-id="${esc(m.id)}" tabindex="0" aria-expanded="${open}">
         <td class="m">${esc(m.muestra)}</td><td>${esc(m.codigo || "—")}${fcFlag ? `<span class="flag" title="f'c distinto al de la obra">${ICON.warn}</span>` : ""}</td>
         <td class="loc">${esc(m.localizacion || "—")}</td><td class="num">${dmy(m.fecha)}</td>
-        ${cell(m.r7, thr)}${cell(m.r28, thr)}<td class="n">${fmt(fcM)}</td><td class="n">${fmt(thr)}</td>${cell(m.r56, thr)}
+        ${cell(m.r7, thr, rr.r7)}${cell(m.r28, thr, rr.r28)}<td class="n">${fmt(fcM)}</td><td class="n">${fmt(thr)}</td>${cell(m.r56, thr, rr.r56)}
         <td><span class="pill ${cls}">${txt}</span></td><td class="loc">${esc(m.obs || "")}</td></tr>`;
       if (open) {
         const conf = state.confirmDel === m.id;
@@ -1093,9 +1117,9 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     return `<div class="tbl-wrap planilla"><table><thead><tr><th>Muestra Nº</th><th>Código mezcla</th><th>Localización</th><th>Fecha de fundida</th><th class="n">R 7d</th><th class="n">R 28d</th><th class="n">f'c</th><th class="n">0,85 f'c</th><th class="n">R 56d</th><th>¿Cumple 0,85 f'c?</th><th>Observaciones</th></tr></thead><tbody>${body}</tbody></table></div>`;
   }
   function renderPlanilla(main) {
-    const segE = [["todos", "Todos"], ["ok", "Cumple"], ["no", "No cumple"], ["wait", "Pendiente"]];
+    const segE = [["todos", "Todos"], ["ok", "Cumple"], ["no", "No cumple"], ["wait", "Pendiente"], ["edad", "Edad distinta"]];
     const all = [...state.muestras.values()].filter((m) => state.filtro.serie === "todas" || serieDe(m.muestra) === state.filtro.serie);
-    const cnt = (e) => e === "todos" ? all.length : all.filter((m) => estado(m) === e).length;
+    const cnt = (e) => e === "todos" ? all.length : e === "edad" ? all.filter((m) => Object.keys(edadesRaras(m.ensayos)).length).length : all.filter((m) => estado(m) === e).length;
     main.innerHTML = `<section class="card">
       <div class="filters">${segSerie()}
         <div class="seg" role="group" aria-label="Estado">${segE.map(([v, l]) => `<button type="button" data-estado="${v}" aria-pressed="${state.filtro.estado === v}">${l}<small>${cnt(v)}</small></button>`).join("")}</div>
@@ -1131,16 +1155,16 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     const rows = [...state.muestras.values()].sort((a, b) => a.fecha.localeCompare(b.fecha) || natCmp(a.muestra, b.muestra));
     const fc = state.obra.fc;
     const aoa = [["RT-037 CONTROL DE RESISTENCIAS DE MORTERO"], ["OBRA:", state.obra.obra || "", "", "f'c =", fc, "(kg/cm2)"], [],
-      ["Muestra Nº", "Código Mezcla", "Localizacion", "Fecha de fundida", "R 7d (kg/cm2)", "R 28d (kg/cm2)", "f'c  (kg/cm2)", "0,85f´c", "R 56d (kg/cm2)", "Cumple 0,85f`c?", "Observaciones (Acciones tomadas)", "Remisión"]];
+      ["Muestra Nº", "Código Mezcla", "Localizacion", "Fecha de fundida", "R 7d (kg/cm2)", "R 28d (kg/cm2)", "f'c  (kg/cm2)", "0,85f´c", "R 56d (kg/cm2)", "Cumple 0,85f`c?", "Observaciones (Acciones tomadas)", "Remisión", "Edad de falla distinta"]];
     for (const m of rows) {
       const f = fcMuestra(m); const e = estado(m);
       const [y, mo, d] = m.fecha.split("-").map(Number);
-      aoa.push([m.muestra, m.codigo || "", m.localizacion || "", new Date(Date.UTC(y, mo - 1, d)), m.r7 ?? "", m.r28 ?? "", f, round2(f * 0.85), m.r56 ?? "", e === "ok" ? "Cumple" : e === "no" ? "NO Cumple" : "", m.obs || "", m.remision || ""]);
+      aoa.push([m.muestra, m.codigo || "", m.localizacion || "", new Date(Date.UTC(y, mo - 1, d)), m.r7 ?? "", m.r28 ?? "", f, round2(f * 0.85), m.r56 ?? "", e === "ok" ? "Cumple" : e === "no" ? "NO Cumple" : "", m.obs || "", m.remision || "", Object.entries(edadesRaras(m.ensayos)).map(([b, a]) => `${LBL[b]} a ${diasTxt(a)}`).join("; ")]);
     }
     const ws = XLSX.utils.aoa_to_sheet(aoa, { cellDates: true, dateNF: "dd/mm/yyyy" });
-    ws["!cols"] = [10, 14, 44, 14, 12, 12, 10, 10, 12, 14, 40, 16].map((w) => ({ wch: w }));
+    ws["!cols"] = [10, 14, 44, 14, 12, 12, 10, 10, 12, 14, 40, 16, 22].map((w) => ({ wch: w }));
     const ens = [["Muestra Nº", "Fecha de muestreo", "Edad (días)", "Grupo", "Resistencia (kg/cm2)", "Fecha de rotura", "Remisión", "Localización"]];
-    for (const m of rows) for (const e of m.ensayos || []) ens.push([m.muestra, dmy(m.fecha), e[0], { r7: "R7d", r28: "R28d", r56: "R56d" }[bucket(e[0])], e[1], e[2] ? dmy(e[2]) : "", m.remision || "", m.localizacion || ""]);
+    for (const m of rows) for (const e of m.ensayos || []) ens.push([m.muestra, dmy(m.fecha), e[0], LBL[bucket(e[0])], e[1], e[2] ? dmy(e[2]) : "", m.remision || "", m.localizacion || ""]);
     const ws2 = XLSX.utils.aoa_to_sheet(ens); ws2["!cols"] = [10, 16, 10, 8, 18, 14, 16, 44].map((w) => ({ wch: w }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "CONTROL");
@@ -1206,7 +1230,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     const h = e.target.closest && e.target.closest(".chart .hit"); if (!h) { hideTip(); return; }
     const d = chartData[+h.dataset.i]; if (!d) return;
     const fcM = fcMuestra(d); const [, txt] = ESTADO[estado(d)];
-    showTip(`<b>${esc(d.muestra)}</b> · ${dmy(d.fecha)}<div class="row"><span>R28d</span><b>${fmt(d.r28)} kg/cm²</b></div><div class="row"><span>% de f'c</span><b>${fmt(round2((d.r28 / fcM) * 100))} %</b></div><div class="row"><span>${txt}</span><b>límite ${fmt(round2(fcM * 0.85))}</b></div>${d.localizacion ? `<div>${esc(d.localizacion)}</div>` : ""}`, e);
+    showTip(`<b>${esc(d.muestra)}</b> · ${dmy(d.fecha)}<div class="row"><span>R28d</span><b>${fmt(d.r28)} kg/cm²</b></div><div class="row"><span>% de f'c</span><b>${fmt(round2((d.r28 / fcM) * 100))} %</b></div><div class="row"><span>${txt}</span><b>límite ${fmt(round2(fcM * 0.85))}</b></div>${edadesRaras(d.ensayos).r28 ? `<div class="row"><span>Fallada a</span><b>${diasTxt(edadesRaras(d.ensayos).r28)}</b></div>` : ""}${d.localizacion ? `<div>${esc(d.localizacion)}</div>` : ""}`, e);
   });
   main.addEventListener("mouseleave", hideTip);
 
