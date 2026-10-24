@@ -197,6 +197,11 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
 .inp:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
 .inp.bad { border-color: var(--crit); }
 .ptable { margin-top: 14px; }
+.bulk { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; padding: 10px 12px; margin-bottom: 12px; border-radius: 12px; background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); font-size: 13px; }
+.bulk.soft { background: var(--surface-2); border-color: var(--line); color: var(--ink-2); }
+.ck-cell { width: 36px; text-align: center; }
+.ck-cell input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+tr.row.marcada td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .pill.dim { opacity: .7; border: 1px dashed var(--line-2); background: transparent; }
 .inp.sm-inp { padding: 4px 8px; font-size: 13px; width: auto; }
 .ptable table { min-width: 520px; }
@@ -399,7 +404,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     muestras: new Map(), obra: { obra: "", fc: 125, codigo: "" }, historial: [],
     mode: "loading", canWrite: true, plan: null, abierto: null, confirmDel: null,
     tab: ["inicio", "cargar", "planilla", "historial", "normas"].includes(ls.get("tab")) ? ls.get("tab") : "inicio",
-    filtro: { serie: "todas", estado: "todos", q: "" },
+    filtro: { serie: "todas", estado: "todos", q: "", probeta: "todas" }, marcadas: new Set(), bulk: false, armBulk: false,
   };
   let db = null, downloads = null;
 
@@ -459,7 +464,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
   const plural = (n, s, p) => `${n} ${n === 1 ? s : p}`;
   const addDays = (iso, n) => { const [y, m, d] = iso.split("-").map(Number); return ymd(new Date(y, m - 1, d + n)); };
   const MANUAL = "Registro manual";
-  const nuevoManual = (prev = {}) => ({ modo: prev.modo || "existente", sel: prev.sel || "", muestra: "", fecha: prev.fecha || ymd(new Date()), codigo: prev.codigo || `${state.obra.fc} kg/CM2`, probeta: prev.probeta || "cilindro", localizacion: "", remision: prev.remision || "", edad: "", fr: "", res: ["", "", ""], error: "", bad: [] });
+  const nuevoManual = (prev = {}) => ({ modo: prev.modo || "existente", sel: prev.sel || "", muestra: "", fecha: prev.fecha || ymd(new Date()), codigo: prev.codigo || `${state.obra.fc} kg/CM2`, probeta: prev.probeta || "cubo", localizacion: "", remision: prev.remision || "", edad: "", fr: "", res: ["", "", ""], error: "", bad: [] });
   state.manual = nuevoManual();
 
   function fcMuestra(m) { return fcDe(m.codigo) ?? state.obra.fc; }
@@ -862,7 +867,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     const p = state.plan; if (!p) return;
     if (btn) { btn.disabled = true; btn.textContent = "Guardando…"; }
     const now = new Date().toISOString();
-    const nuevas = [], actualizadas = [];
+    const nuevas = [], actualizadas = [], completadas = [];
     try {
       if (p.obraInfo.obra && !state.obra.obra) state.obra.obra = p.obraInfo.obra;
       if (p.obraInfo.codigo && !state.obra.codigo) state.obra.codigo = p.obraInfo.codigo;
@@ -883,12 +888,13 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
         const ens = mergeEnsayos(d.ensayos, rec.ensayos); if (ens.length !== (d.ensayos || []).length) { d.ensayos = ens; changed = true; }
         if (!changed) continue;
         d.actualizado = now; await putMuestra(it.k, d);
-        if (aplicar.length) actualizadas.push(rec.muestra);
+        if (aplicar.length) actualizadas.push(rec.muestra); else completadas.push(rec.muestra);
       }
       await addHist({ id: "h" + Date.now(), ts: now, archivo: p.archivo, filas: p.filas, nuevas, actualizadas, sinCambios: p.items.filter((i) => i.tipo === "igual").length });
       if (p.manual) { const k = p.items[0] && p.items[0].k; state.manual = nuevoManual({ ...state.manual, modo: "existente", sel: k && state.muestras.has(k) ? k : state.manual.sel }); }
       state.plan = null; renderAll();
-      toast(nuevas.length || actualizadas.length ? `Cambios aplicados: ${plural(nuevas.length, "muestra nueva", "muestras nuevas")} y ${plural(actualizadas.length, "actualizada", "actualizadas")}.` : "Cambios aplicados: no había resultados nuevos.");
+      toast(nuevas.length || actualizadas.length ? `Cambios aplicados: ${plural(nuevas.length, "muestra nueva", "muestras nuevas")} y ${plural(actualizadas.length, "actualizada", "actualizadas")}.`
+        : completadas.length ? `Sin resultados nuevos. Se completó el tipo de probeta o el detalle de ${plural(completadas.length, "muestra", "muestras")}.` : "Sin resultados nuevos: la planilla ya estaba al día.");
     } catch (e) {
       if (btn) { btn.disabled = false; btn.textContent = "Aplicar cambios"; }
       toast(e && e.code === "quota_exceeded" ? "El registro llegó a su límite de tamaño. Descarga el Excel y elimina muestras antiguas."
@@ -918,9 +924,9 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
   }
 
   function filtradas() {
-    const { serie, estado: est, q } = state.filtro; const nq = norm(q);
+    const { serie, estado: est, q, probeta: pf } = state.filtro; const nq = norm(q);
     return [...state.muestras.entries()].map(([id, m]) => ({ id, ...m, _e: estado(m) }))
-      .filter((m) => (serie === "todas" || serieDe(m.muestra) === serie) && (est === "todos" || (est === "edad" ? Object.keys(edadesRaras(m.ensayos)).length > 0 : m._e === est)) && (!nq || norm(m.muestra + " " + m.localizacion + " " + (m.remision || "")).includes(nq)))
+      .filter((m) => (pf === "todas" || (pf === "sin" ? !m.probeta : m.probeta === pf)) && (serie === "todas" || serieDe(m.muestra) === serie) && (est === "todos" || (est === "edad" ? Object.keys(edadesRaras(m.ensayos)).length > 0 : m._e === est)) && (!nq || norm(m.muestra + " " + m.localizacion + " " + (m.remision || "")).includes(nq)))
       .sort((a, b) => b.fecha.localeCompare(a.fecha) || natCmp(b.muestra, a.muestra));
   }
   function segSerie() {
@@ -1182,7 +1188,9 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       const fcM = fcMuestra(m); const thr = limite(m); const open = state.abierto === m.id;
       const fcFlag = fcDe(m.codigo) != null && fcDe(m.codigo) !== state.obra.fc;
       const [cls, txt] = ESTADO[m._e];
-      let tr = `<tr class="row${open ? " open" : ""}" data-id="${esc(m.id)}" tabindex="0" aria-expanded="${open}">
+      const marcada = state.marcadas.has(m.id);
+      let tr = `<tr class="row${open ? " open" : ""}${marcada ? " marcada" : ""}" data-id="${esc(m.id)}" tabindex="0" aria-expanded="${open}">
+        <td class="ck-cell">${state.canWrite ? `<input type="checkbox" data-check="${esc(m.id)}" ${marcada ? "checked" : ""} aria-label="Seleccionar ${esc(m.muestra)}">` : ""}</td>
         <td class="m">${esc(m.muestra)}</td><td>${esc(m.codigo || "—")}${fcFlag ? `<span class="flag" title="f'c distinto al de la obra">${ICON.warn}</span>` : ""}</td>
         <td class="loc">${esc(m.localizacion || "—")}</td><td class="num">${dmy(m.fecha)}</td>
         <td><span class="pill${m.probeta ? "" : " dim"}" title="${m.probeta ? esc(m.dimension || "") : "No informado: se asume cilindro"}">${PROBETA_TXT[tipoProbeta(m)]}${m.probeta ? "" : "?"}</span></td>
@@ -1190,7 +1198,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
         <td><span class="pill ${cls}">${txt}</span></td><td class="loc">${esc(m.obs || "")}</td></tr>`;
       if (open) {
         const conf = state.confirmDel === m.id;
-        tr += `<tr class="detail"><td colspan="12"><div class="det">
+        tr += `<tr class="detail"><td colspan="13"><div class="det">
           <div><span class="eyebrow">Probetas ensayadas (kg/cm²)</span><div class="probetas">${probetasHtml(m)}</div></div>
           <div><dl class="kv"><dt>Remisión</dt><dd>${esc(m.remision || "—")}</dd>
               <dt>Probeta</dt><dd>${state.canWrite ? `<select class="inp sm-inp" data-probeta="${esc(m.id)}" aria-label="Tipo de probeta de ${esc(m.muestra)}"><option value="cilindro" ${tipoProbeta(m) === "cilindro" ? "selected" : ""}>Cilindro · límite 0,85 f'c</option><option value="cubo" ${tipoProbeta(m) === "cubo" ? "selected" : ""}>Cubo · límite 100 % f'c</option></select>` : PROBETA_TXT[tipoProbeta(m)]}${m.dimension ? ` <span class="hint">${esc(m.dimension)}</span>` : m.probeta ? "" : ` <span class="hint">No informado en el archivo; se asume cilindro.</span>`}</dd><dt>Actualizado</dt><dd>${m.actualizado ? new Date(m.actualizado).toLocaleString("es-CO") : "—"}</dd></dl>
@@ -1203,7 +1211,19 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       }
       return tr;
     }).join("");
-    return `<div class="tbl-wrap planilla"><table><thead><tr><th>Muestra Nº</th><th>Código mezcla</th><th>Localización</th><th>Fecha de fundida</th><th>Probeta</th><th class="n">R 7d</th><th class="n">R 28d</th><th class="n">f'c</th><th class="n">Límite</th><th class="n">R 56d</th><th>¿Cumple?</th><th>Observaciones</th></tr></thead><tbody>${body}</tbody></table></div>`;
+    const ids = rows.map((m) => m.id); const nSel = ids.filter((id) => state.marcadas.has(id)).length;
+    const todas = ids.length && nSel === ids.length;
+    const fuera = [...state.marcadas].filter((id) => !ids.includes(id)).length;
+    const sinTipo = [...state.muestras.values()].filter((m) => !m.probeta).length;
+    const barra = state.canWrite ? (state.marcadas.size
+      ? `<div class="bulk"><b>${plural(state.marcadas.size, "muestra seleccionada", "muestras seleccionadas")}</b>${fuera ? `<span class="hint">(${fuera} fuera del filtro)</span>` : ""}
+          <button class="btn sm primary" type="button" data-bulk="cubo" ${state.bulk ? "disabled" : ""}>Marcar como cubo</button>
+          <button class="btn sm" type="button" data-bulk="cilindro" ${state.bulk ? "disabled" : ""}>Marcar como cilindro</button>
+          <button class="btn sm" type="button" data-act="selNone">Quitar selección</button></div>`
+      : sinTipo ? `<div class="bulk soft"><span>${plural(sinTipo, "muestra no tiene", "muestras no tienen")} tipo de probeta informado (se asumen cilindro).</span>
+          <button class="btn sm" type="button" data-act="selSin">${sinTipo === 1 ? "Seleccionarla" : `Seleccionar las ${sinTipo}`}</button>
+          <button class="btn sm${state.armBulk ? " danger" : ""}" type="button" data-act="sinCubo">${sinTipo === 1 ? (state.armBulk ? "Confirmar: marcarla como cubo" : "Marcarla como cubo") : state.armBulk ? `Confirmar: marcar las ${sinTipo} como cubo` : `Marcar las ${sinTipo} como cubo`}</button></div>` : "") : "";
+    return `${barra}<div class="tbl-wrap planilla"><table><thead><tr><th class="ck-cell">${state.canWrite ? `<input type="checkbox" data-selall ${todas ? "checked" : ""} aria-label="Seleccionar todas las muestras visibles">` : ""}</th><th>Muestra Nº</th><th>Código mezcla</th><th>Localización</th><th>Fecha de fundida</th><th>Probeta</th><th class="n">R 7d</th><th class="n">R 28d</th><th class="n">f'c</th><th class="n">Límite</th><th class="n">R 56d</th><th>¿Cumple?</th><th>Observaciones</th></tr></thead><tbody>${body}</tbody></table></div>`;
   }
   function renderPlanilla(main) {
     const segE = [["todos", "Todos"], ["ok", "Cumple"], ["no", "No cumple"], ["wait", "Pendiente"], ["edad", "Edad distinta"]];
@@ -1212,6 +1232,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     main.innerHTML = `<section class="card">
       <div class="filters">${segSerie()}
         <div class="seg" role="group" aria-label="Estado">${segE.map(([v, l]) => `<button type="button" data-estado="${v}" aria-pressed="${state.filtro.estado === v}">${l}<small>${cnt(v)}</small></button>`).join("")}</div>
+        <div class="seg" role="group" aria-label="Tipo de probeta">${[["todas", "Toda probeta"], ["cilindro", "Cilindro"], ["cubo", "Cubo"], ["sin", "Sin informar"]].map(([v, l]) => `<button type="button" data-pfiltro="${v}" aria-pressed="${state.filtro.probeta === v}">${l}<small>${v === "todas" ? all.length : all.filter((m) => (v === "sin" ? !m.probeta : m.probeta === v)).length}</small></button>`).join("")}</div>
         <input class="search" id="fQ" type="search" placeholder="Buscar muestra, localización o remisión" aria-label="Buscar muestra, localización o remisión" value="${esc(state.filtro.q)}">
         <span class="spacer"></span>
         ${downloads ? `<button class="btn" type="button" data-act="export">${ICON.dl} Descargar Excel</button>` : ""}
@@ -1320,6 +1341,22 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
   function renderAll() { renderChrome(); renderMain(); }
   function goTab(t) { state.tab = t; ls.set("tab", t); renderAll(); window.scrollTo({ top: 0 }); }
 
+  // ---------- cambio masivo del tipo de probeta ----------
+  async function marcarProbeta(ids, tipo) {
+    ids = ids.filter((id) => state.muestras.has(id) && state.muestras.get(id).probeta !== tipo);
+    if (!ids.length) { toast(`Las muestras seleccionadas ya están como ${PROBETA_TXT[tipo].toLowerCase()}.`); state.marcadas.clear(); renderMain(); return; }
+    state.bulk = true; $("#tablaBox").innerHTML = tablaHtml(filtradas());
+    const now = new Date().toISOString(); let ok = 0;
+    try {
+      for (const id of ids) { const m = state.muestras.get(id); await putMuestra(id, { ...m, probeta: tipo, actualizado: now }); ok++; }
+      toast(`${plural(ok, "muestra marcada", "muestras marcadas")} como ${PROBETA_TXT[tipo].toLowerCase()}.`);
+      state.marcadas.clear();
+    } catch (e) {
+      toast(`Se marcaron ${ok} de ${ids.length}. ${e && e.code === "invalid_argument" ? "No tienes permiso para modificar el registro." : "Revisa tu conexión e inténtalo de nuevo."}`);
+    }
+    state.bulk = false; renderMain();
+  }
+
   // ---------- exportar ----------
   async function exportar() {
     if (!downloads) return;
@@ -1384,6 +1421,8 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     const row = e.target.closest("tr.row"); if (row && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); toggleRow(row.dataset.id); }
   });
   main.addEventListener("change", (e) => {
+    if (e.target.dataset.check) { const id = e.target.dataset.check; if (e.target.checked) state.marcadas.add(id); else state.marcadas.delete(id); state.armBulk = false; $("#tablaBox").innerHTML = tablaHtml(filtradas()); return; }
+    if (e.target.hasAttribute("data-selall")) { const ids = filtradas().map((m) => m.id); ids.forEach((id) => (e.target.checked ? state.marcadas.add(id) : state.marcadas.delete(id))); $("#tablaBox").innerHTML = tablaHtml(filtradas()); return; }
     if (e.target.dataset.probeta) {
       const id = e.target.dataset.probeta; const m = state.muestras.get(id); if (!m) return;
       putMuestra(id, { ...m, probeta: e.target.value, actualizado: new Date().toISOString() }).then(() => { toast(`Tipo de probeta guardado: ${PROBETA_TXT[e.target.value].toLowerCase()}.`); renderMain(); }).catch(() => toast("No se pudo guardar el tipo de probeta."));
@@ -1433,6 +1472,12 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       if (act === "apply") applyPlan(a);
       if (act === "discard") { state.plan = null; renderAll(); }
       if (act === "export") exportar();
+      if (act === "selNone") { state.marcadas.clear(); $("#tablaBox").innerHTML = tablaHtml(filtradas()); }
+      if (act === "selSin") { state.marcadas = new Set([...state.muestras.entries()].filter(([, m]) => !m.probeta).map(([id]) => id)); state.filtro.probeta = "sin"; renderMain(); }
+      if (act === "sinCubo") {
+        if (!state.armBulk) { state.armBulk = true; $("#tablaBox").innerHTML = tablaHtml(filtradas()); setTimeout(() => { if (state.armBulk) { state.armBulk = false; const tb = $("#tablaBox"); if (tb) tb.innerHTML = tablaHtml(filtradas()); } }, 5000); }
+        else { state.armBulk = false; marcarProbeta([...state.muestras.entries()].filter(([, m]) => !m.probeta).map(([id]) => id), "cubo"); }
+      }
       if (act === "difAll" && state.plan) { const all = state.plan.items.every((i) => i.difs.every((d) => d.reemplazar)); state.plan.items.forEach((i) => i.difs.forEach((d) => (d.reemplazar = !all))); renderMain(); }
       if (act === "mAdd") { const rs = state.manual.res; rs.push(""); renderMain(); const n = main.querySelector(`[data-r="${rs.length - 1}"]`); if (n) n.focus(); }
       if (act === "mDel") { state.manual.res.splice(+a.dataset.i, 1); state.manual.bad = []; renderMain(); }
@@ -1453,6 +1498,9 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     if (e.target.closest("[data-nodel]")) { state.confirmDel = null; $("#tablaBox").innerHTML = tablaHtml(filtradas()); return; }
     const del = e.target.closest("[data-del]");
     if (del) { try { await delMuestra(del.dataset.del); state.abierto = null; state.confirmDel = null; renderMain(); toast("Muestra eliminada."); } catch (er) { toast("No se pudo eliminar la muestra."); } return; }
+    if (e.target.closest(".ck-cell")) return;
+    const bk = e.target.closest("[data-bulk]"); if (bk) { marcarProbeta([...state.marcadas], bk.dataset.bulk); return; }
+    const pf = e.target.closest("[data-pfiltro]"); if (pf) { state.filtro.probeta = pf.dataset.pfiltro; renderMain(); return; }
     const row = e.target.closest("tr.row"); if (row) toggleRow(row.dataset.id);
   });
 
