@@ -348,7 +348,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     </main>
   </div>
 </div>
-<input class="sr" id="fileInput" type="file" accept=".xlsx,.xlsm,.xls,.csv" tabindex="-1" aria-hidden="true">
+<input class="sr" id="fileInput" type="file" accept=".xlsx,.xlsm,.xls,.csv,.pdf,application/pdf" multiple tabindex="-1" aria-hidden="true">
 <div id="tip" hidden></div>
 <div id="toast" hidden></div>
 
@@ -390,7 +390,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     if (v instanceof Date && !isNaN(v)) return ymd(new Date(v.getTime() + 12 * 3600e3));
     if (typeof v === "number" && v > 20000 && v < 80000) { const d = new Date(Math.round((v - 25569) * 864e5)); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; }
     const s = String(v).trim();
-    let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    let m = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
     if (m) return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
     m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/);
     if (m) {
@@ -576,6 +576,9 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       if (ix.cod >= 0 && row[ix.cod]) g.cods.add(String(row[ix.cod]).trim());
       g.ensayos.push([edad, res, ix.fr >= 0 ? isoDate(row[ix.fr]) : null]);
     }
+    return { recs: recsDeGrupos(grupos), filas, codigoObra };
+  }
+  function recsDeGrupos(grupos) {
     const recs = new Map();
     for (const [k, g] of grupos) {
       const rec = { muestra: g.muestra, fecha: g.fecha, codigo: [...g.cods][0] || "", localizacion: [...g.locs][0] || "", remision: [...g.rems][0] || "", ensayos: g.ensayos, alertas: [] };
@@ -587,7 +590,80 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       if (g.cods.size > 1) rec.alertas.push(`Código de mezcla distinto entre probetas: ${[...g.cods].join(" / ")}`);
       recs.set(k, rec);
     }
-    return { recs, filas, codigoObra };
+    return recs;
+  }
+
+  // ---------- informes PDF de SGS ----------
+  const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+  const loadScript = (src) => new Promise((ok, fail) => { const sc = document.createElement("script"); sc.src = src; sc.onload = ok; sc.onerror = fail; document.head.appendChild(sc); });
+  let pdfjsListo = null;
+  function cargarPdfjs() {
+    // El lector se carga solo cuando llega un PDF. Con pdf.worker cargado como script, pdf.js trabaja en la misma página (sin worker aparte).
+    if (!pdfjsListo) pdfjsListo = loadScript(PDFJS + "pdf.min.js").then(() => loadScript(PDFJS + "pdf.worker.min.js")).then(() => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.js"; });
+    pdfjsListo.catch(() => { pdfjsListo = null; });
+    return pdfjsListo;
+  }
+  async function lineasPdf(buf) {
+    await cargarPdfjs();
+    const pdf = await window.pdfjsLib.getDocument({ data: new Uint8Array(buf), isEvalSupported: false }).promise;
+    const lines = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const tc = await (await pdf.getPage(i)).getTextContent();
+      const rows = [];
+      for (const it of tc.items) {
+        if (!it.str || !it.str.trim()) continue;
+        const x = it.transform[4], y = it.transform[5];
+        let r = rows.find((q) => Math.abs(q.y - y) < 3);
+        if (!r) { r = { y, items: [] }; rows.push(r); }
+        r.items.push({ x, w: it.width || 0, s: it.str });
+      }
+      rows.sort((a, b) => b.y - a.y);
+      for (const r of rows) {
+        r.items.sort((a, b) => a.x - b.x);
+        const cells = []; let last = null;
+        for (const it of r.items) {
+          const gap = last ? it.x - (last.x + last.w) : Infinity;
+          if (gap < 6) { last.s += (gap > 1 ? " " : "") + it.s; last.w = it.x + it.w - last.x; }
+          else { last = { ...it }; cells.push(last); }
+        }
+        lines.push(cells.map((c) => c.s.trim()).join("  "));
+      }
+    }
+    return lines;
+  }
+  function parseInformeSgs(lines) {
+    const pnum = (t) => { const x = String(t).trim().replace(/\.$/, "").replace(/,/g, ""); const n = Number(x); return x && isFinite(n) ? n : null; };
+    const valor = (t) => t.trim().replace(/\.$/, "").trim();
+    const grupos = new Map(); let cur = null, edades = null, informe = "", obra = "", filas = 0;
+    const campos = [
+      ["muestra", /^Identificaci[oó]n de Muestra\s*:\.?\s*(.+)$/i], ["loc", /^Localizaci[oó]n\s*:\.?\s*(.+)$/i],
+      ["fecha", /^Fecha de Fundida\s*:\.?\s*(.+)$/i], ["edad", /^Edad \(d[ií]as\)\s*:\.?\s*(.+)$/i],
+      ["codigo", /^C[oó]digo de Mezcla\s*:\.?\s*(.+)$/i], ["rem", /^N[uú]mero de Remisi[oó]n\s*:\.?\s*(.+)$/i],
+      ["fr", /^Fecha de Rotura\s*:\.?\s*(.+)$/i],
+    ];
+    for (const raw of lines) {
+      const t = raw.replace(/\*+/g, "").replace(/\s+/g, " ").trim();
+      let m;
+      if (!informe && (m = t.match(/No\.\s*(ME\d+)/))) informe = m[1];
+      if (!obra && (m = t.match(/Obra:\s*(.+)$/))) obra = valor(m[1]);
+      for (const [k, re] of campos) {
+        if (!(m = t.match(re))) continue;
+        if (k === "muestra") { cur = { muestra: muestraId(valor(m[1])) }; edades = null; }
+        else if (cur) cur[k] = valor(m[1]);
+      }
+      if (/^Edad de Ensayo\b/i.test(t)) edades = t.replace(/^Edad de Ensayo\s*(D[ií]a\(s\)\.?)?/i, "").split(" ").map(pnum).filter((x) => x != null);
+      if (cur && /^Resistencia a la Compresi[oó]n kgf\s*\/\s*cm/i.test(t)) {
+        const vals = t.replace(/^Resistencia a la Compresi[oó]n kgf\s*\/\s*cm²?\.?/i, "").split(" ").map(pnum).filter((x) => x != null);
+        const fecha = isoDate(cur.fecha);
+        if (!cur.muestra || !fecha) continue;
+        const k = docId(cur.muestra, fecha);
+        if (!grupos.has(k)) grupos.set(k, { muestra: cur.muestra, fecha, locs: new Set(), rems: new Set(), cods: new Set(), ensayos: [] });
+        const g = grupos.get(k);
+        if (cur.loc) g.locs.add(cur.loc); if (cur.rem) g.rems.add(cur.rem); if (cur.codigo) g.cods.add(cur.codigo);
+        vals.forEach((v, i) => { const e = edades && edades[i] != null ? edades[i] : num(cur.edad); if (e != null) { g.ensayos.push([e, v, isoDate(cur.fr)]); filas++; } });
+      }
+    }
+    return { recs: recsDeGrupos(grupos), filas, informe, obra };
   }
 
   function parseControl(rows) {
@@ -644,6 +720,12 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
 
   async function readFile(file) {
     const buf = await file.arrayBuffer();
+    if (/\.pdf$/i.test(file.name) || file.type === "application/pdf") {
+      const lines = await lineasPdf(buf);
+      if (!lines.some((l) => l.trim())) throw { code: "pdf_sin_texto" };
+      const r = parseInformeSgs(lines);
+      return { incoming: r.recs, fuentes: r.filas ? [`Informe SGS ${r.informe || file.name}: ${plural(r.filas, "probeta", "probetas")}`] : [], obraInfo: r.obra ? { codigo: r.obra } : {}, archivo: file.name, filas: r.filas };
+    }
     const isCsv = /\.csv$/i.test(file.name);
     const wb = isCsv ? XLSX.read(new TextDecoder().decode(buf), { type: "string", raw: true }) : XLSX.read(buf, { type: "array", cellDates: true });
     const incoming = new Map(); const fuentes = []; const obraInfo = {};
@@ -681,10 +763,10 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
         if (cur[b] == null) cambios.push({ b, antes: null, despues: rec[b] });
         else if (Math.abs(cur[b] - rec[b]) > 0.011) difs.push({ b, antes: cur[b], despues: rec[b], reemplazar: false });
       }
-      const tipo = cambios.length || difs.length ? "actualiza" : "igual";
+      const tipo = cambios.length ? "actualiza" : difs.length ? "difiere" : "igual";
       items.push({ k, tipo, rec, cambios, difs, alertas: tipo === "igual" ? [] : alertas });
     }
-    const orden = { nueva: 0, actualiza: 1, igual: 2 };
+    const orden = { nueva: 0, actualiza: 1, difiere: 2, igual: 3 };
     items.sort((a, b) => orden[a.tipo] - orden[b.tipo] || a.rec.fecha.localeCompare(b.rec.fecha) || natCmp(a.rec.muestra, b.rec.muestra));
     return { ...parsed, items };
   }
@@ -852,9 +934,10 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       const lbl = (b) => b === "r7" ? "R7d" : b === "r28" ? "R28d" : "R56d";
       const lista = visibles.map((it) => {
         const r = it.rec;
-        const difs = it.difs.map((d, j) => `<div class="diffrow">${lbl(d.b)} registrado <b class="num">${fmt(d.antes)}</b>; el archivo trae <b class="num">${fmt(d.despues)}</b>
+        const difs = it.difs.map((d, j) => `<div class="diffrow"><span>${lbl(d.b)} registrado <b class="num">${fmt(d.antes)}</b>; el archivo trae <b class="num">${fmt(d.despues)}</b></span>
           <label><input type="checkbox" data-dif="${esc(it.k)}|${j}" ${d.reemplazar ? "checked" : ""}> Reemplazar</label></div>`).join("");
-        return `<div class="ritem"><span class="tag"><span class="pill ${it.tipo === "nueva" ? "new" : "good"}">${it.tipo === "nueva" ? "Nueva" : "Resultados"}</span></span>
+        const [tc, tt] = { nueva: ["new", "Nueva"], actualiza: ["good", "Resultados"], difiere: ["crit", "Distinto"] }[it.tipo];
+        return `<div class="ritem"><span class="tag"><span class="pill ${tc}">${tt}</span></span>
           <div><h3>${esc(r.muestra)} <small>${dmy(r.fecha)} · ${esc(r.localizacion || "sin localización")}${r.remision ? " · " + esc(r.remision) : ""}</small></h3>
           ${it.cambios.length ? `<div class="changes">${it.cambios.map((c) => `<span><span class="lbl">${lbl(c.b)}</span><b class="num">${fmt(c.despues)}</b></span>`).join("")}</div>` : ""}${difs}
           ${it.alertas.length ? `<ul class="alerts">${it.alertas.map((a) => `<li>${ICON.warn}<span>${esc(a)}</span></li>`).join("")}</ul>` : ""}</div></div>`;
@@ -867,8 +950,10 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
           <span class="pill big good">${cnt("actualiza")} con resultados nuevos</span>
           <span class="pill big">${iguales.length} sin cambios</span>
           ${nDif ? `<span class="pill big crit">${plural(nDif, "valor distinto", "valores distintos")}</span>` : ""}
+          ${nDif && state.canWrite ? `<button class="btn sm" type="button" data-act="difAll">${p.items.every((i) => i.difs.every((d) => d.reemplazar)) ? "Mantener los registrados" : "Reemplazar todos los distintos"}</button>` : ""}
           ${nAlert ? `<span class="pill big warn">${nAlert} con alertas</span>` : ""}
         </div>
+        ${p.errores && p.errores.length ? `<div class="err" style="margin-bottom:14px">${p.errores.map(esc).join("<br>")}</div>` : ""}
         ${nada ? `<div class="note">Todas las muestras del archivo ya están en la planilla con los mismos valores.</div>` : `<div class="rlist">${lista}</div>`}
         ${iguales.length ? `<p class="hint" style="margin:12px 0 0">Sin cambios: ${iguales.map((i) => esc(i.rec.muestra)).join(", ")}</p>` : ""}
         <div class="actions" style="margin-top:16px">
@@ -880,8 +965,8 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     main.innerHTML = `<div class="stack">${review}
       <div class="dash">
       <section class="card s5" aria-labelledby="cTit">
-        <div class="card-hd"><div><h2 id="cTit">Archivo del laboratorio</h2><p>Sube el archivo que descargas del laboratorio (.xlsx, .xlsm o .csv con las columnas label, fechaMuestreo, edad y Resistencia Kg/Cm2) o el propio RT-037. Nada se guarda hasta que revises los cambios.</p></div></div>
-        <div class="drop" id="drop" role="button" tabindex="0" data-act="pick">${ICON.cargar}<b>Arrastra el archivo aquí</b><span>o haz clic para elegirlo desde tu equipo</span></div>
+        <div class="card-hd"><div><h2 id="cTit">Archivo del laboratorio</h2><p>Sube el Excel que descargas de SGS, los informes PDF de resultados (cuando aún no están en la base de datos) o el propio RT-037. Puedes elegir varios archivos a la vez. Nada se guarda hasta que revises los cambios.</p></div></div>
+        <div class="drop" id="drop" role="button" tabindex="0" data-act="pick">${ICON.cargar}<b>Arrastra los archivos aquí</b><span>Excel (.xlsx, .xlsm, .csv) o PDF de SGS · o haz clic para elegirlos</span></div>
         <div class="rules">
           <div><span class="eyebrow">Edad ≤ 14 días</span><b>R7d</b><span class="hint">Promedio de las probetas del grupo</span></div>
           <div><span class="eyebrow">Edad 15 a 42 días</span><b>R28d</b><span class="hint">Define si cumple 0,85 f'c</span></div>
@@ -915,7 +1000,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       <td><input class="inp" type="date" data-p="${i}|fr" value="${esc(p.fr)}" aria-label="Fecha de rotura de la probeta ${i + 1}"></td>
       <td><button class="icon-btn" type="button" data-act="mDel" data-i="${i}" aria-label="Quitar probeta ${i + 1}" ${m.probetas.length < 2 ? "disabled" : ""}>✕</button></td></tr>`).join("");
     return `<section class="card s7" aria-labelledby="mTit">
-      <div class="card-hd"><div><h2 id="mTit">Registro manual</h2><p>Para resultados que llegan en PDF, por correo o en papel. Escribe cada probeta ensayada; la página promedia por edad y te muestra la revisión antes de guardar.</p></div></div>
+      <div class="card-hd"><div><h2 id="mTit">Registro manual</h2><p>Para resultados que llegan por correo, en papel o en un PDF escaneado. Escribe cada probeta ensayada; la página promedia por edad y te muestra la revisión antes de guardar.</p></div></div>
       <div class="fgrid">
         ${fld("muestra", "Muestra Nº", 'list="dlMuestras" autocomplete="off" placeholder="M31"')}
         ${fld("fecha", "Fecha de muestreo", 'type="date"')}
@@ -1071,26 +1156,34 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
   }
 
   // ---------- eventos ----------
-  async function handleFile(file) {
-    if (!file) return;
-    if (typeof XLSX === "undefined") state.plan = { error: "No se pudo cargar el lector de Excel. Recarga la página e inténtalo de nuevo.", items: [] };
-    else {
+  async function handleFiles(list) {
+    const files = [...(list || [])]; if (!files.length) return;
+    const total = { incoming: new Map(), fuentes: [], obraInfo: {}, archivo: files.length === 1 ? files[0].name : plural(files.length, "archivo", "archivos"), filas: 0 };
+    const errores = [];
+    state.plan = null; goTab("cargar"); toast(files.length > 1 ? `Leyendo ${files.length} archivos…` : `Leyendo ${files[0].name}…`);
+    for (const f of files) {
       try {
-        const parsed = await readFile(file);
-        state.plan = parsed.incoming.size ? planImport(parsed)
-          : { error: `No encontré resultados en "${file.name}". El archivo debe tener una hoja con las columnas label, fechaMuestreo, edad y Resistencia Kg/Cm2 (formato del laboratorio) o la hoja CONTROL del RT-037.`, items: [] };
+        if (!/\.pdf$/i.test(f.name) && typeof XLSX === "undefined") throw { code: "sin_xlsx" };
+        const r = await readFile(f);
+        if (!r.incoming.size) { errores.push(/\.pdf$/i.test(f.name) ? `"${f.name}" no tiene el formato del informe de resultados de SGS (Identificación de Muestra, Fecha de Fundida y Resistencia a la Compresión en kgf/cm²).` : `"${f.name}" no tiene resultados: debe tener las columnas label, fechaMuestreo, edad y Resistencia Kg/Cm2 (formato del laboratorio) o la hoja CONTROL del RT-037.`); continue; }
+        for (const rec of r.incoming.values()) combine(total.incoming, rec);
+        total.fuentes.push(...r.fuentes); total.filas += r.filas; Object.entries(r.obraInfo).forEach(([k, v]) => { if (!total.obraInfo[k]) total.obraInfo[k] = v; });
       } catch (e) {
-        state.plan = { error: `No se pudo leer "${file.name}". Verifica que sea un archivo .xlsx, .xlsm o .csv y que no esté protegido con contraseña.`, items: [] };
+        errores.push(e && e.code === "pdf_sin_texto" ? `"${f.name}" es un PDF escaneado, sin texto que se pueda leer. Usa el registro manual para esa muestra.`
+          : e && e.code === "sin_xlsx" ? "No se pudo cargar el lector de Excel. Recarga la página e inténtalo de nuevo."
+          : /\.pdf$/i.test(f.name) && !window.pdfjsLib ? "No se pudo cargar el lector de PDF. Revisa tu conexión y vuelve a intentarlo."
+          : `No se pudo leer "${f.name}". Verifica que sea un .xlsx, .xlsm, .csv o .pdf y que no esté protegido con contraseña.`);
       }
     }
-    goTab("cargar");
+    state.plan = total.incoming.size ? { ...planImport(total), errores } : { error: errores.join(" "), items: [] };
+    toast(""); $("#toast").hidden = true; renderAll();
   }
 
-  $("#fileInput").addEventListener("change", (e) => { handleFile(e.target.files[0]); e.target.value = ""; });
+  $("#fileInput").addEventListener("change", (e) => { handleFiles(e.target.files); e.target.value = ""; });
   const main = $("#main");
   main.addEventListener("dragover", (e) => { const d = e.target.closest("#drop"); if (d) { e.preventDefault(); d.classList.add("over"); } });
   main.addEventListener("dragleave", (e) => { const d = e.target.closest("#drop"); if (d) d.classList.remove("over"); });
-  main.addEventListener("drop", (e) => { const d = e.target.closest("#drop"); if (d) { e.preventDefault(); d.classList.remove("over"); handleFile(e.dataTransfer.files[0]); } });
+  main.addEventListener("drop", (e) => { const d = e.target.closest("#drop"); if (d) { e.preventDefault(); d.classList.remove("over"); handleFiles(e.dataTransfer.files); } });
   main.addEventListener("keydown", (e) => {
     if ((e.key === "Enter" || e.key === " ") && e.target.id === "drop") { e.preventDefault(); $("#fileInput").click(); return; }
     const row = e.target.closest("tr.row"); if (row && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); toggleRow(row.dataset.id); }
@@ -1099,6 +1192,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     if (e.target.dataset.m === "muestra") { if (manualAutofill()) { renderMain(); const n = main.querySelector('[data-p="0|res"]'); if (n) n.focus(); } return; }
     const c = e.target.closest("[data-dif]"); if (!c || !state.plan) return;
     const [k, j] = c.dataset.dif.split("|"); const it = state.plan.items.find((i) => i.k === k); if (it) it.difs[+j].reemplazar = c.checked;
+    const bulk = main.querySelector('[data-act="difAll"]'); if (bulk) bulk.textContent = state.plan.items.every((i) => i.difs.every((d) => d.reemplazar)) ? "Mantener los registrados" : "Reemplazar todos los distintos";
   });
   main.addEventListener("input", (e) => {
     const t = e.target;
@@ -1131,6 +1225,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       if (act === "apply") applyPlan(a);
       if (act === "discard") { state.plan = null; renderAll(); }
       if (act === "export") exportar();
+      if (act === "difAll" && state.plan) { const all = state.plan.items.every((i) => i.difs.every((d) => d.reemplazar)); state.plan.items.forEach((i) => i.difs.forEach((d) => (d.reemplazar = !all))); renderMain(); }
       if (act === "mAdd") { const ps = state.manual.probetas; ps.push(probetaVacia(ps.length ? ps[ps.length - 1].edad : "7")); renderMain(); const n = main.querySelector(`[data-p="${ps.length - 1}|res"]`); if (n) n.focus(); }
       if (act === "mDel") { state.manual.probetas.splice(+a.dataset.i, 1); state.manual.bad = []; renderMain(); }
       if (act === "mReview") manualReview();
