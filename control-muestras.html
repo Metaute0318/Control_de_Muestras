@@ -190,7 +190,7 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(170px, 100%), 1fr)); gap: 12px; }
 .fgrid .wide { grid-column: 1 / -1; }
-label.fld { display: flex; flex-direction: column; gap: 5px; min-width: 0; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.fld { display: flex; flex-direction: column; gap: 5px; min-width: 0; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .inp { font-family: var(--font-body); font-size: 14px; letter-spacing: 0; text-transform: none; width: 100%; background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 11px; min-width: 0; color: var(--ink); }
 .inp:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
 .inp.bad { border-color: var(--crit); }
@@ -200,6 +200,16 @@ label.fld { display: flex; flex-direction: column; gap: 5px; min-width: 0; font-
 .ptable td:first-child { width: 44px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .ptable .inp { padding: 6px 9px; }
 .ptable td.n .inp { text-align: right; }
+.mstep { margin-top: 16px; display: grid; gap: 8px; }
+.mbase { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); font-size: 13px; color: var(--ink-2); }
+.mbase b { font-family: var(--font-display); font-weight: 600; color: var(--ink); }
+.mstatus { display: flex; flex-wrap: wrap; gap: 6px; }
+.mnota { display: grid; gap: 3px; font-size: 12.5px; }
+.warnline { color: var(--warn-ink); }
+.resgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr)); gap: 10px; }
+.rbox { display: flex; gap: 4px; align-items: flex-end; min-width: 0; }
+.rbox .fld { flex: 1; }
+.fld .seg { align-self: start; }
 .mprev { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--ink-2); }
 .mprev b { font-family: var(--font-display); font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
 .icon-btn { border: 0; background: none; cursor: pointer; color: var(--muted); padding: 4px 8px; border-radius: 8px; font-size: 13px; }
@@ -445,8 +455,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
   const plural = (n, s, p) => `${n} ${n === 1 ? s : p}`;
   const addDays = (iso, n) => { const [y, m, d] = iso.split("-").map(Number); return ymd(new Date(y, m - 1, d + n)); };
   const MANUAL = "Registro manual";
-  const probetaVacia = (edad = "7") => ({ edad, res: "", fr: "" });
-  const nuevoManual = (base = {}) => ({ muestra: "", fecha: base.fecha || ymd(new Date()), codigo: base.codigo || `${state.obra.fc} kg/CM2`, localizacion: "", remision: base.remision || "", probetas: [probetaVacia(), probetaVacia(), probetaVacia()], error: "", bad: [] });
+  const nuevoManual = (prev = {}) => ({ modo: prev.modo || "existente", sel: prev.sel || "", muestra: "", fecha: prev.fecha || ymd(new Date()), codigo: prev.codigo || `${state.obra.fc} kg/CM2`, localizacion: "", remision: prev.remision || "", edad: "", fr: "", res: ["", "", ""], error: "", bad: [] });
   state.manual = nuevoManual();
 
   function fcMuestra(m) { return fcDe(m.codigo) ?? state.obra.fc; }
@@ -843,7 +852,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
         if (aplicar.length) actualizadas.push(rec.muestra);
       }
       await addHist({ id: "h" + Date.now(), ts: now, archivo: p.archivo, filas: p.filas, nuevas, actualizadas, sinCambios: p.items.filter((i) => i.tipo === "igual").length });
-      if (p.manual) state.manual = nuevoManual(state.manual);
+      if (p.manual) { const k = p.items[0] && p.items[0].k; state.manual = nuevoManual({ ...state.manual, modo: "existente", sel: k && state.muestras.has(k) ? k : state.manual.sel }); }
       state.plan = null; renderAll();
       toast(nuevas.length || actualizadas.length ? `Cambios aplicados: ${plural(nuevas.length, "muestra nueva", "muestras nuevas")} y ${plural(actualizadas.length, "actualizada", "actualizadas")}.` : "Cambios aplicados: no había resultados nuevos.");
     } catch (e) {
@@ -1019,15 +1028,34 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       </div></div>`;
   }
 
-  // ---------- Registro manual ----------
+  // ---------- Registro manual (por muestra y edad) ----------
+  // Se registra una edad a la vez: se elige la muestra (registrada o nueva), la edad y las resistencias de sus probetas.
+  const manualBase = () => state.manual.modo === "existente" ? (state.muestras.get(state.manual.sel) || null) : null;
+  const pendientesDe = (x) => AGES.filter(([b]) => x[b] == null).map(([b]) => b);
+  function edadActual() {
+    const m = state.manual; const e = num(m.edad);
+    if (e != null) return e;
+    const x = manualBase(); const pend = x ? pendientesDe(x) : ["r7"];
+    return EDAD_STD[pend[0] || "r56"];
+  }
+  function fechaBase() { const x = manualBase(); return x ? x.fecha : isoDate(state.manual.fecha); }
+  function manualNota() {
+    const e = edadActual(); if (!(e > 0)) return "";
+    const b = bucket(e); const x = manualBase(); const out = [];
+    if (e !== EDAD_STD[b]) out.push(`<span class="warnline">Edad distinta de ${EDAD_STD[b]} días: se registra como ${LBL[b]} fallado a ${diasTxt([e])}.</span>`);
+    if (x && x[b] != null) out.push(`<span class="warnline">Esta muestra ya tiene ${LBL[b]} = ${fmt(x[b])}. La revisión te pedirá confirmar si lo reemplazas.</span>`);
+    const fb = fechaBase();
+    if (!isoDate(state.manual.fr) && fb) out.push(`<span class="hint">Fecha de rotura si la dejas vacía: ${dmy(addDays(fb, e))} (fundida + ${e} días).</span>`);
+    return out.join("");
+  }
   function manualPrev() {
-    const m = state.manual;
-    const ens = m.probetas.map((p) => [num(p.edad), num(p.res)]).filter((e) => e[0] != null && e[1] != null && e[0] > 0);
-    if (!ens.length) return `<span class="hint">Escribe la edad y la resistencia de cada probeta para ver los promedios.</span>`;
-    return AGES.map(([b, lbl]) => {
-      const v = ens.filter((e) => bucket(e[0]) === b).map((e) => e[1]);
-      return v.length ? `<span>${LBL[b]} <b>${fmt(avg(v))}</b>${edadTag(edadesRaras(ens)[b])} <span class="hint">(${plural(v.length, "probeta", "probetas")})</span></span>` : "";
-    }).join("");
+    const m = state.manual; const e = edadActual();
+    const vals = m.res.map(num).filter((v) => v != null && v > 0);
+    if (!vals.length || !(e > 0)) return `<span class="hint">Escribe la resistencia de cada probeta para ver el promedio.</span>`;
+    const b = bucket(e); const a = avg(vals); const x = manualBase();
+    const fcM = x ? fcMuestra(x) : (fcDe(m.codigo) ?? state.obra.fc); const thr = round2(fcM * 0.85);
+    return `<span>${LBL[b]} <b>${fmt(a)}</b>${e !== EDAD_STD[b] ? edadTag([e]) : ""} <span class="hint">(${plural(vals.length, "probeta", "probetas")})</span></span>
+      <span class="pill ${a > thr ? "good" : "crit"}">${a > thr ? "✓ Supera" : "✕ No supera"} 0,85 f'c = ${fmt(thr)}</span>`;
   }
   function manualHtml() {
     const m = state.manual; const bad = new Set(m.bad || []);
@@ -1035,63 +1063,68 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     const uniq = (f) => [...new Set(vals.map((x) => x[f]).filter(Boolean))].sort(natCmp);
     const dl = (id, list) => `<datalist id="${id}">${list.map((v) => `<option value="${esc(v)}"></option>`).join("")}</datalist>`;
     const fld = (f, label, extra = "", cls = "") => `<label class="fld${cls}">${label}<input class="inp${bad.has(f) ? " bad" : ""}" data-m="${f}" value="${esc(m[f])}" ${extra}></label>`;
-    const rows = m.probetas.map((p, i) => `<tr>
-      <td>${i + 1}</td>
-      <td class="n"><input class="inp${bad.has("edad" + i) ? " bad" : ""}" type="number" min="1" step="1" inputmode="numeric" data-p="${i}|edad" value="${esc(p.edad)}" list="dlEdades" aria-label="Edad de la probeta ${i + 1} en días"></td>
-      <td class="n"><input class="inp${bad.has("res" + i) ? " bad" : ""}" type="number" min="0" step="0.1" inputmode="decimal" data-p="${i}|res" value="${esc(p.res)}" placeholder="kg/cm²" aria-label="Resistencia de la probeta ${i + 1} en kg/cm²"></td>
-      <td><input class="inp" type="date" data-p="${i}|fr" value="${esc(p.fr)}" aria-label="Fecha de rotura de la probeta ${i + 1}"></td>
-      <td><button class="icon-btn" type="button" data-act="mDel" data-i="${i}" aria-label="Quitar probeta ${i + 1}" ${m.probetas.length < 2 ? "disabled" : ""}>✕</button></td></tr>`).join("");
+    const lista = [...state.muestras.entries()].map(([id, x]) => ({ id, ...x })).sort((a, b) => b.fecha.localeCompare(a.fecha) || natCmp(b.muestra, a.muestra));
+    const opt = (x) => { const pend = pendientesDe(x); return `<option value="${esc(x.id)}" ${m.sel === x.id ? "selected" : ""}>${esc(x.muestra)} · ${dmy(x.fecha)} · ${pend.length ? "falta " + pend.map((b) => LBL[b]).join(", ") : "completa"}</option>`; };
+    const conPend = lista.filter((x) => pendientesDe(x).length), completas = lista.filter((x) => !pendientesDe(x).length);
+    const x = manualBase(); const e = edadActual(); const bAct = e > 0 ? bucket(e) : null;
+    const listo = m.modo === "nueva" || x;
+    let muestraHtml;
+    if (m.modo === "existente") {
+      muestraHtml = `<label class="fld">Muestra<select class="inp${bad.has("sel") ? " bad" : ""}" data-m="sel"><option value="">Elige una muestra…</option>
+          ${conPend.length ? `<optgroup label="Con edades pendientes">${conPend.map(opt).join("")}</optgroup>` : ""}
+          ${completas.length ? `<optgroup label="Completas">${completas.map(opt).join("")}</optgroup>` : ""}</select></label>
+        ${x ? `<div class="mbase"><span><b>${esc(x.muestra)}</b> · fundida ${dmy(x.fecha)}</span><span>${esc(x.localizacion || "sin localización")}</span><span>${esc(x.codigo || "")}${x.remision ? " · " + esc(x.remision) : ""}</span>
+          <span class="mstatus">${AGES.map(([b]) => `<span class="pill ${x[b] != null ? "good" : ""}">${LBL[b]} ${x[b] != null ? fmt(x[b]) : "pendiente"}</span>`).join("")}</span></div>` : ""}`;
+    } else {
+      muestraHtml = `<div class="fgrid">
+          ${fld("muestra", "Muestra Nº", 'autocomplete="off" placeholder="M31"')}
+          ${fld("fecha", "Fecha de fundida", 'type="date"')}
+          ${fld("codigo", "Código de mezcla", 'list="dlCodigos" autocomplete="off"')}
+          ${fld("remision", "Remisión", 'list="dlRemisiones" autocomplete="off"')}
+          ${fld("localizacion", "Localización", 'list="dlLoc" autocomplete="off" placeholder="Fachada piso 12"', " wide")}
+        </div>${dl("dlCodigos", uniq("codigo"))}${dl("dlRemisiones", uniq("remision"))}${dl("dlLoc", uniq("localizacion"))}`;
+    }
+    const resBoxes = m.res.map((r, i) => `<div class="rbox"><label class="fld">Probeta ${i + 1}<input class="inp${bad.has("res" + i) ? " bad" : ""}" type="number" min="0" step="0.1" inputmode="decimal" data-r="${i}" value="${esc(r)}" placeholder="kg/cm²" aria-label="Resistencia de la probeta ${i + 1} en kg/cm²"></label>
+      <button class="icon-btn" type="button" data-act="mDel" data-i="${i}" aria-label="Quitar probeta ${i + 1}" ${m.res.length < 2 ? "disabled" : ""}>✕</button></div>`).join("");
     return `<section class="card s7" aria-labelledby="mTit">
-      <div class="card-hd"><div><h2 id="mTit">Registro manual</h2><p>Para resultados que llegan por correo, en papel o en un PDF escaneado. Escribe cada probeta ensayada; la página promedia por edad y te muestra la revisión antes de guardar.</p></div></div>
-      <div class="fgrid">
-        ${fld("muestra", "Muestra Nº", 'list="dlMuestras" autocomplete="off" placeholder="M31"')}
-        ${fld("fecha", "Fecha de muestreo", 'type="date"')}
-        ${fld("codigo", "Código de mezcla", 'list="dlCodigos" autocomplete="off"')}
-        ${fld("remision", "Remisión", 'list="dlRemisiones" autocomplete="off"')}
-        ${fld("localizacion", "Localización", 'list="dlLoc" autocomplete="off" placeholder="Fachada piso 12"', " wide")}
-      </div>
-      ${dl("dlMuestras", uniq("muestra"))}${dl("dlCodigos", uniq("codigo"))}${dl("dlRemisiones", uniq("remision"))}${dl("dlLoc", uniq("localizacion"))}${dl("dlEdades", ["7", "28", "56"])}
-      <div class="tbl-wrap ptable"><table><thead><tr><th>Nº</th><th class="n">Edad (días)</th><th class="n">Resistencia (kg/cm²)</th><th>Fecha de rotura</th><th><span class="sr">Quitar</span></th></tr></thead><tbody>${rows}</tbody></table></div>
-      <div class="actions" style="margin-top:10px"><button class="btn sm" type="button" data-act="mAdd">+ Agregar probeta</button><div class="mprev" id="mPrev">${manualPrev()}</div></div>
+      <div class="card-hd"><div><h2 id="mTit">Registro manual por edad</h2><p>Para resultados que llegan por correo, en papel o en un PDF escaneado. Registra una edad a la vez: por ejemplo, el R56d de una muestra que ya tiene R7d y R28d.</p></div></div>
+      <div class="seg" role="group" aria-label="Tipo de muestra"><button type="button" data-act="mModo" data-v="existente" aria-pressed="${m.modo === "existente"}">Muestra registrada</button><button type="button" data-act="mModo" data-v="nueva" aria-pressed="${m.modo === "nueva"}">Muestra nueva</button></div>
+      <div class="mstep">${muestraHtml}</div>
+      ${listo ? `<div class="mstep"><span class="eyebrow">Edad a registrar</span>
+        <div class="fgrid">
+          <div class="fld">Edad nominal<div class="seg" role="group" aria-label="Edad nominal">${AGES.map(([b, lbl]) => `<button type="button" data-act="mEdad" data-v="${EDAD_STD[b]}" aria-pressed="${bAct === b}">${lbl}${x && x[b] != null ? "<small>✓</small>" : ""}</button>`).join("")}</div></div>
+          ${fld("edad", "Edad real de falla (días)", `type="number" min="1" step="1" inputmode="numeric" placeholder="${e}"`)}
+          ${fld("fr", "Fecha de rotura", 'type="date"')}
+        </div>
+        <div class="mnota" id="mNota">${manualNota()}</div></div>
+      <div class="mstep"><span class="eyebrow">Resistencia de cada probeta (kg/cm²)</span>
+        <div class="resgrid">${resBoxes}</div>
+        <div class="actions" style="margin-top:10px"><button class="btn sm" type="button" data-act="mAdd">+ Agregar probeta</button><div class="mprev" id="mPrev">${manualPrev()}</div></div></div>` : ""}
       ${m.error ? `<p class="err" id="mErr" style="margin-top:12px">${esc(m.error)}</p>` : ""}
-      <div class="actions" style="margin-top:14px"><button class="btn primary" type="button" data-act="mReview" ${state.canWrite ? "" : "disabled"}>Revisar resultados</button><button class="btn" type="button" data-act="mClear">Limpiar</button>
-        <span class="hint">Si dejas vacía la fecha de rotura se toma la fecha de muestreo más la edad.</span></div>
+      ${listo ? `<div class="actions" style="margin-top:16px"><button class="btn primary" type="button" data-act="mReview" ${state.canWrite ? "" : "disabled"}>Revisar resultados</button><button class="btn" type="button" data-act="mClear">Limpiar</button></div>` : ""}
     </section>`;
   }
-  // Al escribir un Nº que ya existe, se completan los datos de su registro más reciente.
-  function manualAutofill() {
-    const m = state.manual; const id = muestraId(m.muestra); if (!id) return false;
-    const prev = [...state.muestras.values()].filter((x) => x.muestra === id).sort((a, b) => b.fecha.localeCompare(a.fecha))[0];
-    if (!prev || m.localizacion) return false;
-    Object.assign(m, { fecha: prev.fecha, codigo: prev.codigo || m.codigo, localizacion: prev.localizacion || "", remision: prev.remision || m.remision });
-    const tiene = AGES.filter(([b]) => prev[b] != null).map(([b]) => b);
-    const falta = AGES.find(([b]) => !tiene.includes(b));
-    if (falta && m.probetas.every((p) => !p.res)) m.probetas.forEach((p) => (p.edad = falta[1].replace(" d", "")));
-    return true;
-  }
   function manualReview() {
-    const m = state.manual; const bad = [];
-    const id = muestraId(m.muestra);
-    if (!id) bad.push("muestra");
-    if (!isoDate(m.fecha)) bad.push("fecha");
-    const ens = [];
-    m.probetas.forEach((p, i) => {
-      const e = num(p.edad), r = num(p.res);
-      if (String(p.res).trim() === "") return;
-      if (e == null || e <= 0 || e > 365) bad.push("edad" + i);
-      if (r == null || r <= 0 || r > 2000) bad.push("res" + i);
-      if (e > 0 && r > 0) ens.push([e, round2(r), isoDate(p.fr) || (isoDate(m.fecha) ? addDays(isoDate(m.fecha), e) : null)]);
-    });
+    const m = state.manual; const bad = []; const x = manualBase();
+    if (m.modo === "existente" && !x) bad.push("sel");
+    if (m.modo === "nueva") { if (!muestraId(m.muestra)) bad.push("muestra"); if (!isoDate(m.fecha)) bad.push("fecha"); }
+    const e = edadActual();
+    if (!(e >= 1 && e <= 365)) bad.push("edad");
+    const res = [];
+    m.res.forEach((r, i) => { if (String(r).trim() === "") return; const v = num(r); if (v == null || v <= 0 || v > 2000) bad.push("res" + i); else res.push(round2(v)); });
     m.bad = bad;
-    if (bad.length || !ens.length) {
-      m.error = !ens.length && !bad.some((b) => /^(edad|res)/.test(b)) ? "Escribe al menos una probeta con su edad y resistencia." : "Revisa los campos marcados en rojo: falta el Nº de muestra, la fecha o algún valor de probeta no es válido.";
+    if (bad.length || !res.length) {
+      m.error = bad.length ? "Revisa los campos marcados en rojo." : "Escribe la resistencia de al menos una probeta.";
       renderMain(); return;
     }
     m.error = "";
-    const fecha = isoDate(m.fecha);
-    const rec = { muestra: id, fecha, codigo: m.codigo.trim(), localizacion: m.localizacion.trim(), remision: m.remision.trim(), ensayos: ens, alertas: [] };
-    for (const [b] of AGES) { const v = ens.filter((e) => bucket(e[0]) === b).map((e) => e[1]); rec[b] = avg(v); rec["n" + b.slice(1)] = v.length || null; }
-    state.plan = planImport({ incoming: new Map([[docId(id, fecha), rec]]), fuentes: [`${plural(ens.length, "probeta", "probetas")} escritas a mano`], obraInfo: {}, archivo: MANUAL, filas: ens.length, manual: true });
+    const fecha = x ? x.fecha : isoDate(m.fecha);
+    const fr = isoDate(m.fr) || addDays(fecha, e);
+    const rec = x ? { muestra: x.muestra, fecha, codigo: x.codigo || "", localizacion: x.localizacion || "", remision: x.remision || "" }
+      : { muestra: muestraId(m.muestra), fecha, codigo: m.codigo.trim(), localizacion: m.localizacion.trim(), remision: m.remision.trim() };
+    rec.ensayos = res.map((v) => [e, v, fr]); rec.alertas = [];
+    for (const [b] of AGES) { const v = rec.ensayos.filter((q) => bucket(q[0]) === b).map((q) => q[1]); rec[b] = avg(v); rec["n" + b.slice(1)] = v.length || null; }
+    state.plan = planImport({ incoming: new Map([[docId(rec.muestra, fecha), rec]]), fuentes: [`${LBL[bucket(e)]} a ${diasTxt([e])}: ${plural(res.length, "probeta escrita", "probetas escritas")} a mano`], obraInfo: {}, archivo: MANUAL, filas: res.length, manual: true });
     renderAll(); window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -1126,7 +1159,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
           <div><dl class="kv"><dt>Remisión</dt><dd>${esc(m.remision || "—")}</dd><dt>Actualizado</dt><dd>${m.actualizado ? new Date(m.actualizado).toLocaleString("es-CO") : "—"}</dd></dl>
             <label class="eyebrow" for="obs-${esc(m.id)}">Observaciones (acciones tomadas)</label>
             <textarea id="obs-${esc(m.id)}" data-obs="${esc(m.id)}" ${state.canWrite ? "" : "disabled"}>${esc(m.obs || "")}</textarea>
-            ${state.canWrite ? `<div class="actions"><button class="btn sm primary" type="button" data-save="${esc(m.id)}">Guardar observación</button>
+            ${state.canWrite ? `<div class="actions"><button class="btn sm primary" type="button" data-save="${esc(m.id)}">Guardar observación</button><button class="btn sm" type="button" data-reg="${esc(m.id)}">Registrar una edad</button>
               ${conf ? `<span class="hint">¿Eliminar ${esc(m.muestra)} del ${dmy(m.fecha)}?</span><button class="btn sm danger" type="button" data-del="${esc(m.id)}">Sí, eliminar</button><button class="btn sm" type="button" data-nodel>Cancelar</button>`
                 : `<button class="btn sm danger" type="button" data-askdel="${esc(m.id)}">Eliminar muestra</button>`}</div>` : ""}
           </div></div></td></tr>`;
@@ -1313,16 +1346,24 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     const row = e.target.closest("tr.row"); if (row && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); toggleRow(row.dataset.id); }
   });
   main.addEventListener("change", (e) => {
-    if (e.target.dataset.m === "muestra") { if (manualAutofill()) { renderMain(); const n = main.querySelector('[data-p="0|res"]'); if (n) n.focus(); } return; }
+    if (e.target.dataset.m === "sel") { Object.assign(state.manual, { sel: e.target.value, edad: "", fr: "", res: ["", "", ""], bad: [], error: "" }); renderMain(); const n = main.querySelector('[data-r="0"]'); if (n) n.focus(); return; }
     const c = e.target.closest("[data-dif]"); if (!c || !state.plan) return;
     const [k, j] = c.dataset.dif.split("|"); const it = state.plan.items.find((i) => i.k === k); if (it) it.difs[+j].reemplazar = c.checked;
     const bulk = main.querySelector('[data-act="difAll"]'); if (bulk) bulk.textContent = state.plan.items.every((i) => i.difs.every((d) => d.reemplazar)) ? "Mantener los registrados" : "Reemplazar todos los distintos";
   });
   main.addEventListener("input", (e) => {
     const t = e.target;
-    if ((t.dataset.m || t.dataset.p) && state.manual.error) { state.manual.error = ""; const er = $("#mErr"); if (er) er.remove(); }
-    if (t.dataset.m) { state.manual[t.dataset.m] = t.value; t.classList.remove("bad"); return; }
-    if (t.dataset.p) { const [i, f] = t.dataset.p.split("|"); state.manual.probetas[+i][f] = t.value; t.classList.remove("bad"); const pv = $("#mPrev"); if (pv) pv.innerHTML = manualPrev(); return; }
+    if ((t.dataset.m || t.dataset.r) && state.manual.error) { state.manual.error = ""; const er = $("#mErr"); if (er) er.remove(); }
+    if (t.dataset.m && t.dataset.m !== "sel") {
+      state.manual[t.dataset.m] = t.value; t.classList.remove("bad");
+      if (["edad", "fr", "codigo", "fecha"].includes(t.dataset.m)) {
+        const nt = $("#mNota"); if (nt) nt.innerHTML = manualNota(); const pv = $("#mPrev"); if (pv) pv.innerHTML = manualPrev();
+        const b = edadActual() > 0 ? bucket(edadActual()) : null;
+        main.querySelectorAll('[data-act="mEdad"]').forEach((btn) => btn.setAttribute("aria-pressed", String(b === bucket(+btn.dataset.v))));
+      }
+      return;
+    }
+    if (t.dataset.r) { state.manual.res[+t.dataset.r] = t.value; t.classList.remove("bad"); const pv = $("#mPrev"); if (pv) pv.innerHTML = manualPrev(); return; }
     if (t.id !== "fQ") return;
     state.filtro.q = t.value; $("#tablaBox").innerHTML = tablaHtml(filtradas());
   });
@@ -1350,8 +1391,10 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       if (act === "discard") { state.plan = null; renderAll(); }
       if (act === "export") exportar();
       if (act === "difAll" && state.plan) { const all = state.plan.items.every((i) => i.difs.every((d) => d.reemplazar)); state.plan.items.forEach((i) => i.difs.forEach((d) => (d.reemplazar = !all))); renderMain(); }
-      if (act === "mAdd") { const ps = state.manual.probetas; ps.push(probetaVacia(ps.length ? ps[ps.length - 1].edad : "7")); renderMain(); const n = main.querySelector(`[data-p="${ps.length - 1}|res"]`); if (n) n.focus(); }
-      if (act === "mDel") { state.manual.probetas.splice(+a.dataset.i, 1); state.manual.bad = []; renderMain(); }
+      if (act === "mAdd") { const rs = state.manual.res; rs.push(""); renderMain(); const n = main.querySelector(`[data-r="${rs.length - 1}"]`); if (n) n.focus(); }
+      if (act === "mDel") { state.manual.res.splice(+a.dataset.i, 1); state.manual.bad = []; renderMain(); }
+      if (act === "mModo") { Object.assign(state.manual, { modo: a.dataset.v, edad: "", bad: [], error: "" }); renderMain(); }
+      if (act === "mEdad") { state.manual.edad = a.dataset.v; state.manual.bad = []; renderMain(); }
       if (act === "mReview") manualReview();
       if (act === "mClear") { state.manual = nuevoManual(state.manual); renderMain(); }
       return;
@@ -1362,6 +1405,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       if (m && ta) { try { await putMuestra(id, { ...m, obs: ta.value.trim(), actualizado: new Date().toISOString() }); toast("Observación guardada."); $("#tablaBox").innerHTML = tablaHtml(filtradas()); } catch (er) { toast("No se pudo guardar la observación."); } }
       return;
     }
+    const reg = e.target.closest("[data-reg]"); if (reg) { state.manual = nuevoManual({ ...state.manual, modo: "existente", sel: reg.dataset.reg }); goTab("cargar"); return; }
     const ask = e.target.closest("[data-askdel]"); if (ask) { state.confirmDel = ask.dataset.askdel; $("#tablaBox").innerHTML = tablaHtml(filtradas()); return; }
     if (e.target.closest("[data-nodel]")) { state.confirmDel = null; $("#tablaBox").innerHTML = tablaHtml(filtradas()); return; }
     const del = e.target.closest("[data-del]");
