@@ -123,7 +123,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .card-hd p { margin: 4px 0 0; color: var(--ink-2); max-width: 70ch; }
 .eyebrow { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .dash { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; align-items: start; }
-.s8 { grid-column: span 8; } .s7 { grid-column: span 7; } .s5 { grid-column: span 5; } .s4 { grid-column: span 4; } .s12 { grid-column: span 12; }
+.s8 { grid-column: span 8; } .s7 { grid-column: span 7; } .s6 { grid-column: span 6; } .s5 { grid-column: span 5; } .s4 { grid-column: span 4; } .s12 { grid-column: span 12; }
 
 /* KPIs */
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
@@ -240,6 +240,24 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
 .det textarea:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
 .det .actions { margin-top: 8px; }
 
+/* Normativa */
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 10px; }
+.facts > div { display: grid; gap: 3px; align-content: start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.facts b { font-family: var(--font-display); font-weight: 600; font-size: 17px; font-variant-numeric: tabular-nums; }
+.facts span:last-child { font-size: 12.5px; color: var(--ink-2); }
+.norma-hd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-bottom: 4px; }
+.norma-hd .pill { font-family: var(--font-mono); letter-spacing: .02em; }
+.ref { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 9px; }
+.ref li { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 8px; color: var(--ink-2); line-height: 1.5; }
+.ref li::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-top: 8px; box-shadow: 0 0 8px var(--glow-acc); }
+.ref li b { color: var(--ink); font-weight: 600; }
+.mini-t { margin-top: 12px; }
+.mini-t table { font-size: 13px; }
+.mini-t tr.here td { background: var(--accent-soft); font-weight: 600; }
+.verif { display: inline-block; font-size: 10.5px; font-weight: 600; padding: 0 7px; border-radius: 99px; background: var(--warn-bg); color: var(--warn-ink); margin-left: 6px; vertical-align: 1px; white-space: nowrap; }
+.srcs { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 12.5px; color: var(--ink-2); }
+.srcs a { color: var(--accent); }
+
 /* Listas */
 .list { display: grid; }
 .list-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); }
@@ -292,7 +310,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
   .topbar .t-logo.logo-a { display: var(--logo-azul); }
 }
 @media (max-width: 980px) {
-  .s8, .s7, .s5, .s4 { grid-column: span 12; }
+  .s8, .s7, .s6, .s5, .s4 { grid-column: span 12; }
   .det { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 760px) {
@@ -366,7 +384,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
   const state = {
     muestras: new Map(), obra: { obra: "", fc: 125, codigo: "" }, historial: [],
     mode: "loading", canWrite: true, plan: null, abierto: null, confirmDel: null,
-    tab: ["inicio", "cargar", "planilla", "historial"].includes(ls.get("tab")) ? ls.get("tab") : "inicio",
+    tab: ["inicio", "cargar", "planilla", "historial", "normas"].includes(ls.get("tab")) ? ls.get("tab") : "inicio",
     filtro: { serie: "todas", estado: "todos", q: "" },
   };
   let db = null, downloads = null;
@@ -448,13 +466,14 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     cargar: svgI('<path d="M12 15V4m0 0 4 4m-4-4L8 8"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>'),
     planilla: svgI('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9.7h18M3 14.3h18M9 5v4.7M15 9.7v4.6M9 14.3V19"/>'),
     historial: svgI('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+    normas: svgI('<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M9 8h7M9 11.5h5"/>'),
     sun: svgI('<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>'),
     moon: svgI('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>'),
     dl: svgI('<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>'),
     warn: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 15 14H1L8 1.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 6v3.6M8 11.6v.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
   };
-  const TABS = [["inicio", "Inicio"], ["cargar", "Cargar resultados", "Cargar"], ["planilla", "Planilla de control", "Planilla"], ["historial", "Historial"]];
-  const TITLES = { inicio: "Panel de resistencias", cargar: "Cargar resultados del laboratorio", planilla: "Planilla de control", historial: "Historial de cargas" };
+  const TABS = [["inicio", "Inicio"], ["cargar", "Cargar resultados", "Cargar"], ["planilla", "Planilla de control", "Planilla"], ["historial", "Historial"], ["normas", "Normativa"]];
+  const TITLES = { inicio: "Panel de resistencias", cargar: "Cargar resultados del laboratorio", planilla: "Planilla de control", historial: "Historial de cargas", normas: "Referencia normativa" };
 
   function temaActual() {
     const c = document.documentElement.classList;
@@ -1130,6 +1149,87 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       <div id="tablaBox">${tablaHtml(filtradas())}</div></section>`;
   }
 
+  // ---------- Normativa ----------
+  // Resumen de consulta. Lo marcado con "Verificar" viene de fuentes secundarias y debe confirmarse en el texto oficial.
+  function renderNormas(main) {
+    const fc = state.obra.fc; const V = '<span class="verif" title="Tomado de fuentes secundarias; confirmar en el texto oficial">Verificar</span>';
+    const tipos = [["H", 22.5, "Mayor resistencia; edificaciones altas o de alta exigencia", true], ["M", 17.5, "Mampostería estructural", false], ["S", 12.5, "Mampostería estructural", false], ["N", 7.5, "Solo en sistemas de capacidad mínima de disipación de energía (DMI). Mínimo del Título E", false]];
+    const fcMpa = fc / 10;
+    const tipoObra = [...tipos].sort((a, b) => b[1] - a[1]).find((t) => fcMpa >= t[1]);
+    main.innerHTML = `<div class="stack">
+      <section class="card" aria-labelledby="nApl">
+        <div class="card-hd"><div><h2 id="nApl">Cómo aplica a esta obra</h2><p>Datos del informe de SGS y del formato RT-037 frente a lo que piden las normas.</p></div></div>
+        <div class="facts">
+          <div><span class="eyebrow">Mortero especificado</span><b>${fmt(fc)} kg/cm²</b><span>Son ${fmt(round2(fc / 10.197))} MPa. SGS lo reporta como ${fmt(fcMpa)} MPa nominales${tipoObra ? `, que es el mínimo del tipo ${tipoObra[0]} de la NSR-10` : ""}.</span></div>
+          <div><span class="eyebrow">Probetas que ensaya SGS</span><b>Cilindros 3"×6"</b><span>75,5 × 152 mm, curadas en cuarto húmedo (NTC 3512), según el informe ME26047062.</span></div>
+          <div><span class="eyebrow">Método de ensayo</span><b>NTC 3546 Anexo A.6</b><span>Edición 2021. En ediciones anteriores el método estaba en el Anexo A.7.</span></div>
+          <div><span class="eyebrow">Criterio del RT-037</span><b>0,85 f'c = ${fmt(round2(fc * 0.85))}</b><span>Coincide con la relación cilindro/cubo de cerca del 85 % que indica la NTC 3546.</span></div>
+        </div>
+      </section>
+      <div class="dash">
+        <section class="card s6" aria-labelledby="nNsr">
+          <div class="norma-hd"><h2 id="nNsr">NSR-10, Título D</h2><span class="pill">D.3.4 Mortero de pega</span></div>
+          <p class="hint" style="margin:0">Reglamento Colombiano de Construcción Sismo Resistente, mampostería estructural.</p>
+          <div class="tbl-wrap mini-t"><table><thead><tr><th>Tipo</th><th class="n">f'cp mín. 28 d</th><th class="n">kgf/cm²</th><th>Uso</th></tr></thead><tbody>
+            ${tipos.map(([t, mpa, uso, ver]) => `<tr class="${tipoObra && tipoObra[0] === t ? "here" : ""}"><td class="m">${t}</td><td class="n">${fmt(mpa)} MPa${ver ? V : ""}</td><td class="n">${fmt(Math.round(mpa * 10.197))}</td><td>${uso}</td></tr>`).join("")}
+          </tbody></table></div>
+          <ul class="ref">
+            <li><span>Cada tipo se define por <b>dosificación mínima y resistencia a compresión</b> (Tabla D.3.4-1). La tabla también fija flujo inicial y retención de agua mínimos.</span></li>
+            <li><span>Hay dos alternativas de dosificación por tipo: <b>cemento portland con cal hidratada</b> o <b>cemento portland con cemento para mampostería</b>. No se mezclan cal y cemento para mampostería en la misma dosificación.</span></li>
+            <li><span>Retención de agua mínima del <b>75 %</b> y contenido de aire máximo del <b>12 %</b>.${V}</span></li>
+            <li><span>Control en obra según <b>NTC 3546 (ASTM C780)</b>: al menos <b>un ensayo de compresión (promedio de 3 probetas) por cada 200 m² de muro o por cada día de pega</b>, y revisión semanal de plasticidad y retención de agua.${V}</span></li>
+            <li><span>Título E (casas de uno y dos pisos): mortero de pega de al menos <b>7,5 MPa a 28 días</b>, con una mezcla no más pobre que <b>1:4</b> (cementante:arena en volumen).${V}</span></li>
+          </ul>
+        </section>
+        <section class="card s6" aria-labelledby="nC780">
+          <div class="norma-hd"><h2 id="nC780">NTC 3546</h2><span class="pill">ASTM C780</span></div>
+          <p class="hint" style="margin:0">Evaluación de morteros para mampostería antes y durante la construcción.</p>
+          <ul class="ref">
+            <li><span>El <b>Anexo A.6</b> trata la resistencia a compresión de <b>cilindros y cubos moldeados</b> con mortero tomado en obra: cubos de 50 mm o cilindros de 75 × 150 mm.</span></li>
+            <li><span>Para mezclas iguales, la resistencia del <b>cilindro es cerca del 85 %</b> de la del cubo. Un resultado en cilindro no se compara directamente con un valor medido en cubos.</span></li>
+            <li><span>La probeta moldeada casi siempre da <b>menos resistencia que el mortero dentro del muro</b>: no está en contacto con unidades absorbentes y conserva más agua. Por eso el ensayo <b>no predice la resistencia del mortero en el muro</b>.</span></li>
+            <li><span>Los valores de resistencia por propiedades de la ASTM C270 son para mortero preparado en laboratorio. <b>El mortero muestreado en obra no se usa para declarar cumplimiento de esa especificación.</b></span></li>
+            <li><span>Su uso principal es verificar la <b>uniformidad entre baches</b> y comparar con los ensayos previos a la construcción, que deberían dar valores parecidos.</span></li>
+          </ul>
+        </section>
+        <section class="card s6" aria-labelledby="nC109">
+          <div class="norma-hd"><h2 id="nC109">NTC 220</h2><span class="pill">ASTM C109</span></div>
+          <p class="hint" style="margin:0">Resistencia a compresión de morteros de cemento hidráulico en cubos de 50 mm. Es la base de los valores que declaran las fichas técnicas de los morteros secos premezclados de pega y pañete.</p>
+          <div class="tbl-wrap mini-t"><table><thead><tr><th>Edad de ensayo</th><th>Tolerancia permitida</th></tr></thead><tbody>
+            <tr><td>24 horas</td><td>± ½ hora</td></tr><tr><td>3 días</td><td>± 1 hora</td></tr><tr><td>7 días</td><td>± 3 horas</td></tr><tr><td>28 días</td><td>± 12 horas</td></tr>
+          </tbody></table></div>
+          <ul class="ref">
+            <li><span>Los especímenes se fallan <b>apenas salen del cuarto húmedo o del agua</b>, y todos los de una misma edad deben fallarse dentro de la tolerancia.</span></li>
+            <li><span>Con estas tolerancias, un ensayo de 7 días hecho al día 8 o uno de 28 días hecho al día 27 queda <b>por fuera</b>. Por eso la planilla marca la edad real de falla.</span></li>
+            <li><span>La ficha técnica del mortero seco (cubos preparados en laboratorio) <b>no es comparable directamente</b> con los cilindros moldeados en obra que ensaya SGS.</span></li>
+          </ul>
+        </section>
+        <section class="card s6" aria-labelledby="nApp">
+          <div class="norma-hd"><h2 id="nApp">Cómo evalúa esta planilla</h2></div>
+          <ul class="ref">
+            <li><span><b>R7d</b>: probetas de 1 a 27 días. <b>R28d</b>: de 28 a 55 días. <b>R56d</b>: 56 días o más. Cada valor es el promedio de las probetas del grupo.</span></li>
+            <li><span>Si una probeta se falla a una edad distinta de 7, 28 o 56 días, se avisa en la revisión y se marca en la planilla.</span></li>
+            <li><span><b>Cumple</b> si alguna de las resistencias (R7d, R28d o R56d) supera 0,85 f'c. <b>No cumple</b> si hay R28d y ninguna lo supera. Es la misma lógica de la columna K del RT-037.</span></li>
+            <li><span>Se avisa cuando una edad tiene <b>una sola probeta</b>. La NSR-10 pide el promedio de 3 probetas por ensayo.</span></li>
+            <li><span>Si el código de mezcla indica otro f'c (por ejemplo, 75 kg/CM2 en enchapes), esa muestra se evalúa con su propio f'c.</span></li>
+          </ul>
+        </section>
+      </div>
+      <section class="card" aria-labelledby="nSrc">
+        <div class="card-hd"><div><h2 id="nSrc">Fuentes</h2><p>Resumen de consulta para la obra; no reemplaza el texto de las normas. Lo marcado con <span class="verif">Verificar</span> proviene de fuentes secundarias y debe confirmarse en la NSR-10 oficial antes de usarse en diseño o en una no conformidad.</p></div></div>
+        <ol class="srcs">
+          <li>Informe de resultados SGS Colombia ME26047062 Rev. 0 (2026/07/21): método, tipo y curado de probetas.</li>
+          <li>NSR-10, Título D (copia publicada por el IDRD): <a href="https://www.idrd.gov.co/sites/default/files/documentos/Construcciones/4titulo-d-nsr-100.pdf" target="_blank" rel="noopener">idrd.gov.co</a></li>
+          <li>ASTM C780, alcance y significado (Anexo A6, relación cilindro/cubo): <a href="https://www.astm.org/Standards/C780.htm" target="_blank" rel="noopener">astm.org</a></li>
+          <li>ASTM C109/C109M-24, tolerancias de edad de ensayo: <a href="https://www.odot.org/materials/C97001_WEB_REP/TECH_EVAL_CLISTS/CLISTS/00004.pdf" target="_blank" rel="noopener">lista de chequeo ODOT</a></li>
+          <li>Mason Contractors Association, ensayo de mortero en obra frente a ASTM C270: <a href="https://www.masoncontractors.org/2000/07/10/field-testing-of-mortar/" target="_blank" rel="noopener">masoncontractors.org</a></li>
+          <li>Retención de agua y contenido de aire: <a href="https://360enconcreto.com/blog/detalle/normatividad-morteros-para-mamposteria-no-estructural/" target="_blank" rel="noopener">360 en concreto</a>. Control en obra cada 200 m²: <a href="https://www.asocretovirtual.com/presentaciones-rc2018/MORTERO-SECO/1-QUE_DEBE_CUMPLIR_EL_MORTERO_Y_LA_MANPOSTERIA_SEGUN_LA_NSR-10-SANDRA_REINAGUERRA.pdf" target="_blank" rel="noopener">Asocreto, Reunión del Concreto 2018</a>.</li>
+          <li>Dosificación 1:4 y mínimo de 7,5 MPa (Título E): <a href="https://www.redalyc.org/journal/2570/257046835009/html/" target="_blank" rel="noopener">Tecnura, Universidad Distrital (2016)</a>.</li>
+        </ol>
+      </section>
+    </div>`;
+  }
+
   // ---------- Historial ----------
   function renderHistorial(main) {
     const h = state.historial;
@@ -1144,7 +1244,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
   function renderMain() {
     hideTip();
     const main = $("#main");
-    ({ inicio: renderInicio, cargar: renderCargar, planilla: renderPlanilla, historial: renderHistorial })[state.tab](main);
+    ({ inicio: renderInicio, cargar: renderCargar, planilla: renderPlanilla, historial: renderHistorial, normas: renderNormas })[state.tab](main);
   }
   function renderAll() { renderChrome(); renderMain(); }
   function goTab(t) { state.tab = t; ls.set("tab", t); renderAll(); window.scrollTo({ top: 0 }); }
