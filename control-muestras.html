@@ -192,9 +192,13 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
 .fgrid .wide { grid-column: 1 / -1; }
 .fld { display: flex; flex-direction: column; gap: 5px; min-width: 0; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .inp { font-family: var(--font-body); font-size: 14px; letter-spacing: 0; text-transform: none; width: 100%; background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 11px; min-width: 0; color: var(--ink); }
+.inp option, .inp optgroup { background: var(--surface-solid); color: var(--ink); }
+.inp optgroup { color: var(--muted); font-style: normal; }
 .inp:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
 .inp.bad { border-color: var(--crit); }
 .ptable { margin-top: 14px; }
+.pill.dim { opacity: .7; border: 1px dashed var(--line-2); background: transparent; }
+.inp.sm-inp { padding: 4px 8px; font-size: 13px; width: auto; }
 .ptable table { min-width: 520px; }
 .ptable td { padding: 6px 8px; }
 .ptable td:first-child { width: 44px; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -455,12 +459,32 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
   const plural = (n, s, p) => `${n} ${n === 1 ? s : p}`;
   const addDays = (iso, n) => { const [y, m, d] = iso.split("-").map(Number); return ymd(new Date(y, m - 1, d + n)); };
   const MANUAL = "Registro manual";
-  const nuevoManual = (prev = {}) => ({ modo: prev.modo || "existente", sel: prev.sel || "", muestra: "", fecha: prev.fecha || ymd(new Date()), codigo: prev.codigo || `${state.obra.fc} kg/CM2`, localizacion: "", remision: prev.remision || "", edad: "", fr: "", res: ["", "", ""], error: "", bad: [] });
+  const nuevoManual = (prev = {}) => ({ modo: prev.modo || "existente", sel: prev.sel || "", muestra: "", fecha: prev.fecha || ymd(new Date()), codigo: prev.codigo || `${state.obra.fc} kg/CM2`, probeta: prev.probeta || "cilindro", localizacion: "", remision: prev.remision || "", edad: "", fr: "", res: ["", "", ""], error: "", bad: [] });
   state.manual = nuevoManual();
 
   function fcMuestra(m) { return fcDe(m.codigo) ?? state.obra.fc; }
+  // Tipo de probeta: los cilindros deben superar 0,85 f'c y los cubos el 100 % de f'c (cilindro ≈ 85 % del cubo, NTC 3546).
+  const FACTOR = { cilindro: 0.85, cubo: 1 };
+  const PROBETA_TXT = { cilindro: "Cilindro", cubo: "Cubo" };
+  const tipoProbeta = (m) => (m && m.probeta === "cubo" ? "cubo" : "cilindro");
+  const limite = (m) => round2(fcMuestra(m) * FACTOR[tipoProbeta(m)]);
+  const pctTxt = (m) => (tipoProbeta(m) === "cubo" ? "100 %" : "85 %");
+  // Deduce el tipo a partir de la dimensión ("3\"x6\"", "2\"x2\"", "50 x 50 mm") o del texto "Cilíndrico" / "Cúbico".
+  function probetaDe(txt) {
+    const n = norm(txt).replace(/[″”"]/g, '"').replace(/pulg(adas)?/g, '"');
+    if (!n) return null;
+    if (/cub/.test(n)) return "cubo";
+    if (/cil/.test(n)) return "cilindro";
+    const m = n.match(/(\d+(?:[.,]\d+)?)\s*(?:"|mm|cm|in)?\s*[x×*]\s*(\d+(?:[.,]\d+)?)/);
+    if (!m) return null;
+    const a = Number(m[1].replace(",", ".")), b = Number(m[2].replace(",", "."));
+    if (!a || !b) return null;
+    if (Math.abs(a - b) / Math.max(a, b) < 0.1) return "cubo";
+    if (b / a > 1.6 && b / a < 2.4) return "cilindro";
+    return null;
+  }
   function estado(m) {
-    const thr = fcMuestra(m) * 0.85;
+    const thr = limite(m);
     const vals = [m.r7, m.r28, m.r56];
     if (vals.every((v) => v == null)) return "wait";
     if (vals.some((v) => v != null && v > thr)) return "ok";
@@ -600,6 +624,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       obra: colOf(c, (x) => x === "codigoobra", (x) => x.includes("obra")),
       edad: colOf(c, (x) => x === "edad"),
       res: colOf(c, (x) => x.includes("resistencia") && x.includes("kg")),
+      dim: colOf(c, (x) => x === "dimension", (x) => x.includes("dimension"), (x) => x.includes("especimen") || x.includes("probeta")),
     };
     if (ix.m < 0 || ix.fm < 0) return null;
     const grupos = new Map(); let filas = 0, codigoObra = "";
@@ -611,8 +636,9 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       filas++;
       if (!codigoObra && ix.obra >= 0 && row[ix.obra]) codigoObra = String(row[ix.obra]).trim();
       const k = docId(m, f);
-      if (!grupos.has(k)) grupos.set(k, { muestra: m, fecha: f, locs: new Set(), rems: new Set(), cods: new Set(), ensayos: [] });
+      if (!grupos.has(k)) grupos.set(k, { muestra: m, fecha: f, locs: new Set(), rems: new Set(), cods: new Set(), dims: new Set(), ensayos: [] });
       const g = grupos.get(k);
+      if (ix.dim >= 0 && row[ix.dim]) g.dims.add(String(row[ix.dim]).trim());
       if (ix.loc >= 0 && row[ix.loc]) g.locs.add(String(row[ix.loc]).trim());
       if (ix.rem >= 0 && row[ix.rem]) g.rems.add(String(row[ix.rem]).trim());
       if (ix.cod >= 0 && row[ix.cod]) g.cods.add(String(row[ix.cod]).trim());
@@ -630,6 +656,10 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       }
       if (g.locs.size > 1) rec.alertas.push(`Localización distinta entre probetas: ${[...g.locs].join(" / ")}`);
       if (g.cods.size > 1) rec.alertas.push(`Código de mezcla distinto entre probetas: ${[...g.cods].join(" / ")}`);
+      const dims = [...(g.dims || [])]; const tipos = [...new Set(dims.map(probetaDe).filter(Boolean))];
+      if (dims.length) rec.dimension = dims.filter((d) => !/^(cil|cub)/i.test(norm(d))).join(" / ") || dims[0];
+      if (tipos.length === 1) rec.probeta = tipos[0];
+      if (tipos.length > 1) rec.alertas.push(`Probetas de distinto tipo en la misma muestra (${dims.join(" / ")}). Revisa cuál aplica.`);
       recs.set(k, rec);
     }
     return recs;
@@ -681,7 +711,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       ["muestra", /^Identificaci[oó]n de Muestra\s*:\.?\s*(.+)$/i], ["loc", /^Localizaci[oó]n\s*:\.?\s*(.+)$/i],
       ["fecha", /^Fecha de Fundida\s*:\.?\s*(.+)$/i], ["edad", /^Edad \(d[ií]as\)\s*:\.?\s*(.+)$/i],
       ["codigo", /^C[oó]digo de Mezcla\s*:\.?\s*(.+)$/i], ["rem", /^N[uú]mero de Remisi[oó]n\s*:\.?\s*(.+)$/i],
-      ["fr", /^Fecha de Rotura\s*:\.?\s*(.+)$/i],
+      ["fr", /^Fecha de Rotura\s*:\.?\s*(.+)$/i], ["dim", /^Dimensi[oó]n\s*:\.?\s*(.+)$/i],
     ];
     for (const raw of lines) {
       const t = raw.replace(/\*+/g, "").replace(/\s+/g, " ").trim();
@@ -693,15 +723,17 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
         if (k === "muestra") { cur = { muestra: muestraId(valor(m[1])) }; edades = null; }
         else if (cur) cur[k] = valor(m[1]);
       }
+      if (cur && /^Tipo de Especimen\b/i.test(t)) cur.esp = t.replace(/^Tipo de Especimen\s*-?\s*/i, "");
       if (/^Edad de Ensayo\b/i.test(t)) edades = t.replace(/^Edad de Ensayo\s*(D[ií]a\(s\)\.?)?/i, "").split(" ").map(pnum).filter((x) => x != null);
       if (cur && /^Resistencia a la Compresi[oó]n kgf\s*\/\s*cm/i.test(t)) {
         const vals = t.replace(/^Resistencia a la Compresi[oó]n kgf\s*\/\s*cm²?\.?/i, "").split(" ").map(pnum).filter((x) => x != null);
         const fecha = isoDate(cur.fecha);
         if (!cur.muestra || !fecha) continue;
         const k = docId(cur.muestra, fecha);
-        if (!grupos.has(k)) grupos.set(k, { muestra: cur.muestra, fecha, locs: new Set(), rems: new Set(), cods: new Set(), ensayos: [] });
+        if (!grupos.has(k)) grupos.set(k, { muestra: cur.muestra, fecha, locs: new Set(), rems: new Set(), cods: new Set(), dims: new Set(), ensayos: [] });
         const g = grupos.get(k);
         if (cur.loc) g.locs.add(cur.loc); if (cur.rem) g.rems.add(cur.rem); if (cur.codigo) g.cods.add(cur.codigo);
+        if (cur.dim) g.dims.add(cur.dim); else if (cur.esp) g.dims.add(cur.esp.split(" ")[0]);
         vals.forEach((v, i) => { const e = edades && edades[i] != null ? edades[i] : num(cur.edad); if (e != null) { g.ensayos.push([e, v, isoDate(cur.fr)]); filas++; } });
       }
     }
@@ -755,7 +787,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     const k = docId(rec.muestra, rec.fecha);
     const cur = into.get(k);
     if (!cur) { into.set(k, rec); return; }
-    for (const f of ["codigo", "localizacion", "remision", "obs", "r7", "r28", "r56", "n7", "n28", "n56"]) if ((cur[f] == null || cur[f] === "") && rec[f] != null && rec[f] !== "") cur[f] = rec[f];
+    for (const f of ["codigo", "localizacion", "remision", "obs", "probeta", "dimension", "r7", "r28", "r56", "n7", "n28", "n56"]) if ((cur[f] == null || cur[f] === "") && rec[f] != null && rec[f] !== "") cur[f] = rec[f];
     cur.ensayos = mergeEnsayos(cur.ensayos, rec.ensayos);
     cur.alertas = [...new Set([...(cur.alertas || []), ...(rec.alertas || [])])];
   }
@@ -793,6 +825,8 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       const fc = fcDe(rec.codigo || cur?.codigo);
       if (fc != null && fc !== state.obra.fc) alertas.push(`f'c de la mezcla (${fc} kg/cm²) distinto al f'c de la obra (${state.obra.fc}). Se evalúa con ${fc}.`);
       for (const [b, lbl] of AGES) { const n = rec["n" + b.slice(1)]; if (n === 1) alertas.push(`Solo 1 probeta a ${lbl}.`); }
+      if (cur && cur.probeta && rec.probeta && cur.probeta !== rec.probeta) alertas.push(`El archivo indica ${PROBETA_TXT[rec.probeta].toLowerCase()} y la muestra está registrada como ${PROBETA_TXT[cur.probeta].toLowerCase()}. Se conserva el tipo registrado.`);
+      if (!cur && !rec.probeta) alertas.push(`El archivo no indica si las probetas son cilindros o cubos: se asume cilindro (límite 0,85 f'c). Puedes cambiarlo en la planilla.`);
       const raras = edadesRaras(rec.ensayos);
       for (const b in raras) alertas.push(`${LBL[b]} fallado a ${diasTxt(raras[b])}, no a ${EDAD_STD[b]}.`);
       if (!cur) {
@@ -836,7 +870,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       for (const it of p.items) {
         const rec = it.rec;
         if (it.tipo === "nueva") {
-          const d = { muestra: rec.muestra, fecha: rec.fecha, codigo: rec.codigo || "", localizacion: rec.localizacion || "", remision: rec.remision || "", obs: rec.obs || "", ensayos: rec.ensayos || [], notas: {}, creado: now, actualizado: now };
+          const d = { muestra: rec.muestra, fecha: rec.fecha, codigo: rec.codigo || "", localizacion: rec.localizacion || "", remision: rec.remision || "", probeta: rec.probeta || "", dimension: rec.dimension || "", obs: rec.obs || "", ensayos: rec.ensayos || [], notas: {}, creado: now, actualizado: now };
           for (const [b] of AGES) { const nk = "n" + b.slice(1); d[b] = rec[b] ?? null; d[nk] = rec[nk] ?? null; if (rec[b] != null) d.notas[b] = traza(rec[nk], rec, p.archivo, b); }
           await putMuestra(it.k, d); nuevas.push(rec.muestra); continue;
         }
@@ -845,7 +879,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
         let changed = false;
         const aplicar = [...it.cambios, ...it.difs.filter((x) => x.reemplazar)];
         for (const c of aplicar) { const nk = "n" + c.b.slice(1); d[c.b] = c.despues; d[nk] = rec[nk] ?? null; d.notas[c.b] = traza(rec[nk], rec, p.archivo, c.b) + (c.antes != null ? ` (antes ${fmt(c.antes)})` : ""); changed = true; }
-        for (const f of ["codigo", "localizacion", "remision"]) if (!d[f] && rec[f]) { d[f] = rec[f]; changed = true; }
+        for (const f of ["codigo", "localizacion", "remision", "probeta", "dimension"]) if (!d[f] && rec[f]) { d[f] = rec[f]; changed = true; }
         const ens = mergeEnsayos(d.ensayos, rec.ensayos); if (ens.length !== (d.ensayos || []).length) { d.ensayos = ens; changed = true; }
         if (!changed) continue;
         d.actualizado = now; await putMuestra(it.k, d);
@@ -906,7 +940,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     return `<div class="kpis">
       <div class="kpi"><span class="eyebrow">Muestras</span><span class="v">${rows.length}</span><span class="d">${con28.length} con ensayo a 28 días</span></div>
       <div class="kpi"><span class="eyebrow">Promedio general R28d</span><span class="v">${fmt(x)}<small>kg/cm²</small></span><span class="d">${x != null ? `${fmt(round2((x / state.obra.fc) * 100))} % del f'c de ${state.obra.fc}` : "Sin ensayos a 28 días"}</span></div>
-      <div class="kpi"><span class="eyebrow">Cumplen 0,85 f'c</span><span class="v">${ok}<small>de ${rows.length}</small></span>
+      <div class="kpi"><span class="eyebrow">Cumplen el límite</span><span class="v">${ok}<small>de ${rows.length}</small></span>
         <div class="split-bar" aria-hidden="true"><span class="sb-good" style="width:${(ok / tot) * 100}%"></span><span class="sb-crit" style="width:${(no / tot) * 100}%"></span><span class="sb-wait" style="width:${(wait / tot) * 100}%"></span></div>
         <span class="d">${no} no cumplen · ${wait} pendientes</span></div>
       <div class="kpi"><span class="eyebrow">Menor R28d</span><span class="v">${min ? fmt(min.r28) : "—"}${min ? "<small>kg/cm²</small>" : ""}</span><span class="d">${min ? `${esc(min.muestra)} · ${dmy(min.fecha)}` : "Sin ensayos a 28 días"}</span></div>
@@ -929,7 +963,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     let bars = "";
     data.forEach((d, i) => {
       const cx = padL + slot * i + slot / 2; const x0 = cx - bw / 2; const yt = y(d.r28); const h = y(0) - yt;
-      const bad = d.r28 <= fcMuestra(d) * 0.85; const r = Math.min(4, bw / 2, h);
+      const bad = d.r28 <= limite(d); const r = Math.min(4, bw / 2, h);
       bars += `<path class="${bad ? "g-crit" : "g-int"}" d="M${x0},${y(0)} V${yt + r} Q${x0},${yt} ${x0 + r},${yt} H${x0 + bw - r} Q${x0 + bw},${yt} ${x0 + bw},${yt + r} V${y(0)} Z" fill="${bad ? "var(--crit)" : "var(--int)"}"/>
         <text class="ax" x="${cx}" y="${H - padB + 14}" text-anchor="end" transform="rotate(-50 ${cx} ${H - padB + 14})">${esc(d.muestra)}</text>
         <rect class="hit" data-i="${i}" x="${cx - slot / 2}" y="${padT}" width="${slot}" height="${H - padT - padB}"/>`;
@@ -937,7 +971,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     const lines = `<line class="lim" x1="${padL}" x2="${W - padR}" y1="${y(thr)}" y2="${y(thr)}"/><text class="lim-t" x="${W - padR + 6}" y="${y(thr) + 4}">${fmt(round2(thr))}</text>
       <line class="fc" x1="${padL}" x2="${W - padR}" y1="${y(state.obra.fc)}" y2="${y(state.obra.fc)}"/><text class="fc-t" x="${W - padR + 6}" y="${y(state.obra.fc) + 4}">f'c ${state.obra.fc}</text>`;
     chartData = data;
-    return `<div class="chart-scroll"><div class="chart"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Resistencia a 28 días de ${data.length} muestras frente a 0,85 f'c">${g}${lines}${bars}</svg></div></div>`;
+    return `<div class="chart-scroll"><div class="chart"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Resistencia a 28 días de ${data.length} muestras frente a su límite de aceptación">${g}${lines}${bars}</svg></div></div>`;
   }
   let chartData = [], chartW = 640;
 
@@ -952,12 +986,12 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       ${kpisHtml(rows)}
       <div class="dash">
         <section class="card s8" aria-labelledby="gTit"><div class="card-hd"><h2 id="gTit">Resistencia a 28 días<small>por muestra, en orden de fundida</small></h2>
-          <div class="legend"><span><i style="background:var(--int)"></i>Cumple</span><span><i style="background:var(--crit)"></i>No cumple</span><span><i class="dash"></i>0,85 f'c = ${fmt(thr)}</span><span><i class="solid"></i>f'c</span></div></div>
+          <div class="legend"><span><i style="background:var(--int)"></i>Cumple</span><span><i style="background:var(--crit)"></i>No cumple</span><span><i class="dash"></i>0,85 f'c = ${fmt(thr)} (cilindros)</span><span><i class="solid"></i>f'c = ${fmt(state.obra.fc)} (cubos)</span></div></div>
           <div id="chartBox">${chartHtml(rows)}</div></section>
         <section class="card s4" aria-labelledby="aTit"><div class="card-hd"><h2 id="aTit">No cumplen<small>${noCumplen.length} muestras</small></h2></div>
-          ${noCumplen.length ? `<div class="list">${noCumplen.slice(0, 8).map((m) => `<div class="list-row"><span class="ck crit" aria-hidden="true">✕</span><div class="nm"><b>${esc(m.muestra)}</b><span>${dmy(m.fecha)} · ${esc(m.localizacion || "sin localización")}</span></div><div class="rt2"><b>${fmt(m.r28)}</b><span class="hint">de ${fmt(round2(fcMuestra(m) * 0.85))}</span></div></div>`).join("")}</div>
+          ${noCumplen.length ? `<div class="list">${noCumplen.slice(0, 8).map((m) => `<div class="list-row"><span class="ck crit" aria-hidden="true">✕</span><div class="nm"><b>${esc(m.muestra)}</b><span>${dmy(m.fecha)} · ${esc(m.localizacion || "sin localización")}</span></div><div class="rt2"><b>${fmt(m.r28)}</b><span class="hint">límite ${fmt(limite(m))} (${PROBETA_TXT[tipoProbeta(m)].toLowerCase()})</span></div></div>`).join("")}</div>
             ${noCumplen.length > 8 ? `<button class="btn sm" type="button" data-go="planilla" data-estado-go="no" style="margin-top:10px">Ver las ${noCumplen.length}</button>` : ""}`
-            : `<div class="empty"><b>Todas cumplen</b>Ninguna muestra con R28d está por debajo de 0,85 f'c.</div>`}
+            : `<div class="empty"><b>Todas cumplen</b>Ninguna muestra con R28d está por debajo de su límite.</div>`}
           ${raras.length ? `<div class="card-hd" style="margin:18px 0 8px"><h3>Falladas a otra edad<small>${raras.length}</small></h3></div>
           <div class="list">${raras.slice(0, 5).map(([m, r]) => `<div class="list-row"><span class="ck" style="border:2px solid var(--warn);color:var(--warn-ink)" aria-hidden="true">!</span><div class="nm"><b>${esc(m.muestra)}</b><span>${dmy(m.fecha)} · ${esc(m.localizacion || "")}</span></div><div class="rt2">${Object.entries(r).map(([b, a]) => `<span class="hint">${LBL[b]} a ${diasTxt(a)}</span>`).join("")}</div></div>`).join("")}</div>
           ${raras.length > 5 ? `<button class="btn sm" type="button" data-go="planilla" data-estado-go="edad" style="margin-top:10px">Ver las ${raras.length}</button>` : ""}` : ""}
@@ -1019,7 +1053,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
         <div class="drop" id="drop" role="button" tabindex="0" data-act="pick">${ICON.cargar}<b>Arrastra los archivos aquí</b><span>Excel (.xlsx, .xlsm, .csv) o PDF de SGS · o haz clic para elegirlos</span></div>
         <div class="rules">
           <div><span class="eyebrow">1 a 27 días</span><b>R7d</b><span class="hint">Nominal: 7 días</span></div>
-          <div><span class="eyebrow">28 a 55 días</span><b>R28d</b><span class="hint">Nominal: 28 días. Define si cumple 0,85 f'c</span></div>
+          <div><span class="eyebrow">28 a 55 días</span><b>R28d</b><span class="hint">Nominal: 28 días. Define si cumple el límite</span></div>
           <div><span class="eyebrow">56 días o más</span><b>R56d</b><span class="hint">Nominal: 56 días</span></div>
         </div>
         <p class="hint" style="margin:10px 0 0">Si una probeta se falla a una edad distinta de 7, 28 o 56 días, la revisión lo avisa y la planilla muestra la edad junto al resultado.</p>
@@ -1053,9 +1087,9 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     const vals = m.res.map(num).filter((v) => v != null && v > 0);
     if (!vals.length || !(e > 0)) return `<span class="hint">Escribe la resistencia de cada probeta para ver el promedio.</span>`;
     const b = bucket(e); const a = avg(vals); const x = manualBase();
-    const fcM = x ? fcMuestra(x) : (fcDe(m.codigo) ?? state.obra.fc); const thr = round2(fcM * 0.85);
+    const ref = x || { codigo: m.codigo, probeta: m.probeta }; const thr = limite(ref);
     return `<span>${LBL[b]} <b>${fmt(a)}</b>${e !== EDAD_STD[b] ? edadTag([e]) : ""} <span class="hint">(${plural(vals.length, "probeta", "probetas")})</span></span>
-      <span class="pill ${a > thr ? "good" : "crit"}">${a > thr ? "✓ Supera" : "✕ No supera"} 0,85 f'c = ${fmt(thr)}</span>`;
+      <span class="pill ${a > thr ? "good" : "crit"}">${a > thr ? "✓ Supera" : "✕ No supera"} el límite de ${fmt(thr)} (${pctTxt(ref)} f'c, ${PROBETA_TXT[tipoProbeta(ref)].toLowerCase()})</span>`;
   }
   function manualHtml() {
     const m = state.manual; const bad = new Set(m.bad || []);
@@ -1073,7 +1107,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       muestraHtml = `<label class="fld">Muestra<select class="inp${bad.has("sel") ? " bad" : ""}" data-m="sel"><option value="">Elige una muestra…</option>
           ${conPend.length ? `<optgroup label="Con edades pendientes">${conPend.map(opt).join("")}</optgroup>` : ""}
           ${completas.length ? `<optgroup label="Completas">${completas.map(opt).join("")}</optgroup>` : ""}</select></label>
-        ${x ? `<div class="mbase"><span><b>${esc(x.muestra)}</b> · fundida ${dmy(x.fecha)}</span><span>${esc(x.localizacion || "sin localización")}</span><span>${esc(x.codigo || "")}${x.remision ? " · " + esc(x.remision) : ""}</span>
+        ${x ? `<div class="mbase"><span><b>${esc(x.muestra)}</b> · fundida ${dmy(x.fecha)}</span><span>${esc(x.localizacion || "sin localización")}</span><span>${esc(x.codigo || "")}${x.remision ? " · " + esc(x.remision) : ""} · ${PROBETA_TXT[tipoProbeta(x)].toLowerCase()} (límite ${fmt(limite(x))})</span>
           <span class="mstatus">${AGES.map(([b]) => `<span class="pill ${x[b] != null ? "good" : ""}">${LBL[b]} ${x[b] != null ? fmt(x[b]) : "pendiente"}</span>`).join("")}</span></div>` : ""}`;
     } else {
       muestraHtml = `<div class="fgrid">
@@ -1081,6 +1115,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
           ${fld("fecha", "Fecha de fundida", 'type="date"')}
           ${fld("codigo", "Código de mezcla", 'list="dlCodigos" autocomplete="off"')}
           ${fld("remision", "Remisión", 'list="dlRemisiones" autocomplete="off"')}
+          <label class="fld">Tipo de probeta<select class="inp" data-m="probeta"><option value="cilindro" ${m.probeta !== "cubo" ? "selected" : ""}>Cilindro 3"×6" · límite 0,85 f'c</option><option value="cubo" ${m.probeta === "cubo" ? "selected" : ""}>Cubo 50 mm · límite 100 % f'c</option></select></label>
           ${fld("localizacion", "Localización", 'list="dlLoc" autocomplete="off" placeholder="Fachada piso 12"', " wide")}
         </div>${dl("dlCodigos", uniq("codigo"))}${dl("dlRemisiones", uniq("remision"))}${dl("dlLoc", uniq("localizacion"))}`;
     }
@@ -1121,7 +1156,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     const fecha = x ? x.fecha : isoDate(m.fecha);
     const fr = isoDate(m.fr) || addDays(fecha, e);
     const rec = x ? { muestra: x.muestra, fecha, codigo: x.codigo || "", localizacion: x.localizacion || "", remision: x.remision || "" }
-      : { muestra: muestraId(m.muestra), fecha, codigo: m.codigo.trim(), localizacion: m.localizacion.trim(), remision: m.remision.trim() };
+      : { muestra: muestraId(m.muestra), fecha, codigo: m.codigo.trim(), localizacion: m.localizacion.trim(), remision: m.remision.trim(), probeta: m.probeta === "cubo" ? "cubo" : "cilindro", dimension: m.probeta === "cubo" ? "50 mm" : '3"x6"' };
     rec.ensayos = res.map((v) => [e, v, fr]); rec.alertas = [];
     for (const [b] of AGES) { const v = rec.ensayos.filter((q) => bucket(q[0]) === b).map((q) => q[1]); rec[b] = avg(v); rec["n" + b.slice(1)] = v.length || null; }
     state.plan = planImport({ incoming: new Map([[docId(rec.muestra, fecha), rec]]), fuentes: [`${LBL[bucket(e)]} a ${diasTxt([e])}: ${plural(res.length, "probeta escrita", "probetas escritas")} a mano`], obraInfo: {}, archivo: MANUAL, filas: res.length, manual: true });
@@ -1144,19 +1179,21 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     const cell = (v, thr, raras) => v == null ? `<td class="n empty-v">—</td>` : `<td class="n${v <= thr ? " below" : ""}">${fmt(v)}${edadTag(raras)}</td>`;
     const body = rows.map((m) => {
       const rr = edadesRaras(m.ensayos);
-      const fcM = fcMuestra(m); const thr = round2(fcM * 0.85); const open = state.abierto === m.id;
+      const fcM = fcMuestra(m); const thr = limite(m); const open = state.abierto === m.id;
       const fcFlag = fcDe(m.codigo) != null && fcDe(m.codigo) !== state.obra.fc;
       const [cls, txt] = ESTADO[m._e];
       let tr = `<tr class="row${open ? " open" : ""}" data-id="${esc(m.id)}" tabindex="0" aria-expanded="${open}">
         <td class="m">${esc(m.muestra)}</td><td>${esc(m.codigo || "—")}${fcFlag ? `<span class="flag" title="f'c distinto al de la obra">${ICON.warn}</span>` : ""}</td>
         <td class="loc">${esc(m.localizacion || "—")}</td><td class="num">${dmy(m.fecha)}</td>
-        ${cell(m.r7, thr, rr.r7)}${cell(m.r28, thr, rr.r28)}<td class="n">${fmt(fcM)}</td><td class="n">${fmt(thr)}</td>${cell(m.r56, thr, rr.r56)}
+        <td><span class="pill${m.probeta ? "" : " dim"}" title="${m.probeta ? esc(m.dimension || "") : "No informado: se asume cilindro"}">${PROBETA_TXT[tipoProbeta(m)]}${m.probeta ? "" : "?"}</span></td>
+        ${cell(m.r7, thr, rr.r7)}${cell(m.r28, thr, rr.r28)}<td class="n">${fmt(fcM)}</td><td class="n">${fmt(thr)}<small class="hint"> · ${pctTxt(m)}</small></td>${cell(m.r56, thr, rr.r56)}
         <td><span class="pill ${cls}">${txt}</span></td><td class="loc">${esc(m.obs || "")}</td></tr>`;
       if (open) {
         const conf = state.confirmDel === m.id;
-        tr += `<tr class="detail"><td colspan="11"><div class="det">
+        tr += `<tr class="detail"><td colspan="12"><div class="det">
           <div><span class="eyebrow">Probetas ensayadas (kg/cm²)</span><div class="probetas">${probetasHtml(m)}</div></div>
-          <div><dl class="kv"><dt>Remisión</dt><dd>${esc(m.remision || "—")}</dd><dt>Actualizado</dt><dd>${m.actualizado ? new Date(m.actualizado).toLocaleString("es-CO") : "—"}</dd></dl>
+          <div><dl class="kv"><dt>Remisión</dt><dd>${esc(m.remision || "—")}</dd>
+              <dt>Probeta</dt><dd>${state.canWrite ? `<select class="inp sm-inp" data-probeta="${esc(m.id)}" aria-label="Tipo de probeta de ${esc(m.muestra)}"><option value="cilindro" ${tipoProbeta(m) === "cilindro" ? "selected" : ""}>Cilindro · límite 0,85 f'c</option><option value="cubo" ${tipoProbeta(m) === "cubo" ? "selected" : ""}>Cubo · límite 100 % f'c</option></select>` : PROBETA_TXT[tipoProbeta(m)]}${m.dimension ? ` <span class="hint">${esc(m.dimension)}</span>` : m.probeta ? "" : ` <span class="hint">No informado en el archivo; se asume cilindro.</span>`}</dd><dt>Actualizado</dt><dd>${m.actualizado ? new Date(m.actualizado).toLocaleString("es-CO") : "—"}</dd></dl>
             <label class="eyebrow" for="obs-${esc(m.id)}">Observaciones (acciones tomadas)</label>
             <textarea id="obs-${esc(m.id)}" data-obs="${esc(m.id)}" ${state.canWrite ? "" : "disabled"}>${esc(m.obs || "")}</textarea>
             ${state.canWrite ? `<div class="actions"><button class="btn sm primary" type="button" data-save="${esc(m.id)}">Guardar observación</button><button class="btn sm" type="button" data-reg="${esc(m.id)}">Registrar una edad</button>
@@ -1166,7 +1203,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       }
       return tr;
     }).join("");
-    return `<div class="tbl-wrap planilla"><table><thead><tr><th>Muestra Nº</th><th>Código mezcla</th><th>Localización</th><th>Fecha de fundida</th><th class="n">R 7d</th><th class="n">R 28d</th><th class="n">f'c</th><th class="n">0,85 f'c</th><th class="n">R 56d</th><th>¿Cumple 0,85 f'c?</th><th>Observaciones</th></tr></thead><tbody>${body}</tbody></table></div>`;
+    return `<div class="tbl-wrap planilla"><table><thead><tr><th>Muestra Nº</th><th>Código mezcla</th><th>Localización</th><th>Fecha de fundida</th><th>Probeta</th><th class="n">R 7d</th><th class="n">R 28d</th><th class="n">f'c</th><th class="n">Límite</th><th class="n">R 56d</th><th>¿Cumple?</th><th>Observaciones</th></tr></thead><tbody>${body}</tbody></table></div>`;
   }
   function renderPlanilla(main) {
     const segE = [["todos", "Todos"], ["ok", "Cumple"], ["no", "No cumple"], ["wait", "Pendiente"], ["edad", "Edad distinta"]];
@@ -1196,7 +1233,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
           <div><span class="eyebrow">Mortero especificado</span><b>${fmt(fc)} kg/cm²</b><span>Son ${fmt(round2(fc / 10.197))} MPa. SGS lo reporta como ${fmt(fcMpa)} MPa nominales${tipoObra ? `, que es el mínimo del tipo ${tipoObra[0]} de la NSR-10` : ""}.</span></div>
           <div><span class="eyebrow">Probetas que ensaya SGS</span><b>Cilindros 3"×6"</b><span>75,5 × 152 mm, curadas en cuarto húmedo (NTC 3512), según el informe ME26047062.</span></div>
           <div><span class="eyebrow">Método de ensayo</span><b>NTC 3546 Anexo A.6</b><span>Edición 2021. En ediciones anteriores el método estaba en el Anexo A.7.</span></div>
-          <div><span class="eyebrow">Criterio del RT-037</span><b>0,85 f'c = ${fmt(round2(fc * 0.85))}</b><span>Coincide con la relación cilindro/cubo de cerca del 85 % que indica la NTC 3546.</span></div>
+          <div><span class="eyebrow">Límite de aceptación</span><b>Cilindros ${fmt(round2(fc * 0.85))} · Cubos ${fmt(fc)}</b><span>0,85 f'c para cilindros y 100 % de f'c para cubos, por la relación cilindro/cubo de cerca del 85 % de la NTC 3546.</span></div>
         </div>
       </section>
       <div class="dash">
@@ -1242,7 +1279,8 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
           <ul class="ref">
             <li><span><b>R7d</b>: probetas de 1 a 27 días. <b>R28d</b>: de 28 a 55 días. <b>R56d</b>: 56 días o más. Cada valor es el promedio de las probetas del grupo.</span></li>
             <li><span>Si una probeta se falla a una edad distinta de 7, 28 o 56 días, se avisa en la revisión y se marca en la planilla.</span></li>
-            <li><span><b>Cumple</b> si alguna de las resistencias (R7d, R28d o R56d) supera 0,85 f'c. <b>No cumple</b> si hay R28d y ninguna lo supera. Es la misma lógica de la columna K del RT-037.</span></li>
+            <li><span>El límite depende del tipo de probeta: <b>cilindros 0,85 f'c</b> y <b>cubos 100 % de f'c</b>. El tipo se toma de la columna <i>dimension</i> del Excel de SGS (3"x6" = cilindro; 2"x2" o 50 mm = cubo) o de <i>Dimensión / Tipo de Especimen</i> del PDF. Si el archivo no lo dice, se asume cilindro y se puede cambiar en la planilla.</span></li>
+            <li><span><b>Cumple</b> si alguna de las resistencias (R7d, R28d o R56d) supera su límite. <b>No cumple</b> si hay R28d y ninguna lo supera. Es la misma lógica de la columna K del RT-037.</span></li>
             <li><span>Se avisa cuando una edad tiene <b>una sola probeta</b>. La NSR-10 pide el promedio de 3 probetas por ensayo.</span></li>
             <li><span>Si el código de mezcla indica otro f'c (por ejemplo, 75 kg/CM2 en enchapes), esa muestra se evalúa con su propio f'c.</span></li>
           </ul>
@@ -1288,14 +1326,14 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     const rows = [...state.muestras.values()].sort((a, b) => a.fecha.localeCompare(b.fecha) || natCmp(a.muestra, b.muestra));
     const fc = state.obra.fc;
     const aoa = [["RT-037 CONTROL DE RESISTENCIAS DE MORTERO"], ["OBRA:", state.obra.obra || "", "", "f'c =", fc, "(kg/cm2)"], [],
-      ["Muestra Nº", "Código Mezcla", "Localizacion", "Fecha de fundida", "R 7d (kg/cm2)", "R 28d (kg/cm2)", "f'c  (kg/cm2)", "0,85f´c", "R 56d (kg/cm2)", "Cumple 0,85f`c?", "Observaciones (Acciones tomadas)", "Remisión", "Edad de falla distinta"]];
+      ["Muestra Nº", "Código Mezcla", "Localizacion", "Fecha de fundida", "R 7d (kg/cm2)", "R 28d (kg/cm2)", "f'c  (kg/cm2)", "Límite (kg/cm2)", "R 56d (kg/cm2)", "¿Cumple?", "Observaciones (Acciones tomadas)", "Remisión", "Edad de falla distinta", "Tipo de probeta", "Dimensión"]];
     for (const m of rows) {
       const f = fcMuestra(m); const e = estado(m);
       const [y, mo, d] = m.fecha.split("-").map(Number);
-      aoa.push([m.muestra, m.codigo || "", m.localizacion || "", new Date(Date.UTC(y, mo - 1, d)), m.r7 ?? "", m.r28 ?? "", f, round2(f * 0.85), m.r56 ?? "", e === "ok" ? "Cumple" : e === "no" ? "NO Cumple" : "", m.obs || "", m.remision || "", Object.entries(edadesRaras(m.ensayos)).map(([b, a]) => `${LBL[b]} a ${diasTxt(a)}`).join("; ")]);
+      aoa.push([m.muestra, m.codigo || "", m.localizacion || "", new Date(Date.UTC(y, mo - 1, d)), m.r7 ?? "", m.r28 ?? "", f, limite(m), m.r56 ?? "", e === "ok" ? "Cumple" : e === "no" ? "NO Cumple" : "", m.obs || "", m.remision || "", Object.entries(edadesRaras(m.ensayos)).map(([b, a]) => `${LBL[b]} a ${diasTxt(a)}`).join("; "), `${PROBETA_TXT[tipoProbeta(m)]} (${pctTxt(m)} f'c)${m.probeta ? "" : " supuesto"}`, m.dimension || ""]);
     }
     const ws = XLSX.utils.aoa_to_sheet(aoa, { cellDates: true, dateNF: "dd/mm/yyyy" });
-    ws["!cols"] = [10, 14, 44, 14, 12, 12, 10, 10, 12, 14, 40, 16, 22].map((w) => ({ wch: w }));
+    ws["!cols"] = [10, 14, 44, 14, 12, 12, 10, 12, 12, 12, 40, 16, 22, 22, 12].map((w) => ({ wch: w }));
     const ens = [["Muestra Nº", "Fecha de muestreo", "Edad (días)", "Grupo", "Resistencia (kg/cm2)", "Fecha de rotura", "Remisión", "Localización"]];
     for (const m of rows) for (const e of m.ensayos || []) ens.push([m.muestra, dmy(m.fecha), e[0], LBL[bucket(e[0])], e[1], e[2] ? dmy(e[2]) : "", m.remision || "", m.localizacion || ""]);
     const ws2 = XLSX.utils.aoa_to_sheet(ens); ws2["!cols"] = [10, 16, 10, 8, 18, 14, 16, 44].map((w) => ({ wch: w }));
@@ -1346,6 +1384,11 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     const row = e.target.closest("tr.row"); if (row && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); toggleRow(row.dataset.id); }
   });
   main.addEventListener("change", (e) => {
+    if (e.target.dataset.probeta) {
+      const id = e.target.dataset.probeta; const m = state.muestras.get(id); if (!m) return;
+      putMuestra(id, { ...m, probeta: e.target.value, actualizado: new Date().toISOString() }).then(() => { toast(`Tipo de probeta guardado: ${PROBETA_TXT[e.target.value].toLowerCase()}.`); renderMain(); }).catch(() => toast("No se pudo guardar el tipo de probeta."));
+      return;
+    }
     if (e.target.dataset.m === "sel") { Object.assign(state.manual, { sel: e.target.value, edad: "", fr: "", res: ["", "", ""], bad: [], error: "" }); renderMain(); const n = main.querySelector('[data-r="0"]'); if (n) n.focus(); return; }
     const c = e.target.closest("[data-dif]"); if (!c || !state.plan) return;
     const [k, j] = c.dataset.dif.split("|"); const it = state.plan.items.find((i) => i.k === k); if (it) it.difs[+j].reemplazar = c.checked;
@@ -1356,7 +1399,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     if ((t.dataset.m || t.dataset.r) && state.manual.error) { state.manual.error = ""; const er = $("#mErr"); if (er) er.remove(); }
     if (t.dataset.m && t.dataset.m !== "sel") {
       state.manual[t.dataset.m] = t.value; t.classList.remove("bad");
-      if (["edad", "fr", "codigo", "fecha"].includes(t.dataset.m)) {
+      if (["edad", "fr", "codigo", "fecha", "probeta"].includes(t.dataset.m)) {
         const nt = $("#mNota"); if (nt) nt.innerHTML = manualNota(); const pv = $("#mPrev"); if (pv) pv.innerHTML = manualPrev();
         const b = edadActual() > 0 ? bucket(edadActual()) : null;
         main.querySelectorAll('[data-act="mEdad"]').forEach((btn) => btn.setAttribute("aria-pressed", String(b === bucket(+btn.dataset.v))));
@@ -1371,7 +1414,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     const h = e.target.closest && e.target.closest(".chart .hit"); if (!h) { hideTip(); return; }
     const d = chartData[+h.dataset.i]; if (!d) return;
     const fcM = fcMuestra(d); const [, txt] = ESTADO[estado(d)];
-    showTip(`<b>${esc(d.muestra)}</b> · ${dmy(d.fecha)}<div class="row"><span>R28d</span><b>${fmt(d.r28)} kg/cm²</b></div><div class="row"><span>% de f'c</span><b>${fmt(round2((d.r28 / fcM) * 100))} %</b></div><div class="row"><span>${txt}</span><b>límite ${fmt(round2(fcM * 0.85))}</b></div>${edadesRaras(d.ensayos).r28 ? `<div class="row"><span>Fallada a</span><b>${diasTxt(edadesRaras(d.ensayos).r28)}</b></div>` : ""}${d.localizacion ? `<div>${esc(d.localizacion)}</div>` : ""}`, e);
+    showTip(`<b>${esc(d.muestra)}</b> · ${dmy(d.fecha)}<div class="row"><span>R28d</span><b>${fmt(d.r28)} kg/cm²</b></div><div class="row"><span>% de f'c</span><b>${fmt(round2((d.r28 / fcM) * 100))} %</b></div><div class="row"><span>${txt}</span><b>límite ${fmt(limite(d))}</b></div><div class="row"><span>Probeta</span><b>${PROBETA_TXT[tipoProbeta(d)]} · ${pctTxt(d)} f'c</b></div>${edadesRaras(d.ensayos).r28 ? `<div class="row"><span>Fallada a</span><b>${diasTxt(edadesRaras(d.ensayos).r28)}</b></div>` : ""}${d.localizacion ? `<div>${esc(d.localizacion)}</div>` : ""}`, e);
   });
   main.addEventListener("mouseleave", hideTip);
 
