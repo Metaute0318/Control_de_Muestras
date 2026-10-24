@@ -1,0 +1,873 @@
+<title>Control de Muestras RT-037</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: hoja de control de laboratorio — banda de encabezado tipo formato RT-037, carga de archivo, resumen, gráfico y planilla. */
+:root {
+  --bg: #eef0ee;
+  --surface: #fbfcfb;
+  --surface-2: #f4f6f5;
+  --ink: #15191c;
+  --ink-2: #4a5358;
+  --muted: #737d82;
+  --line: #d6dbd9;
+  --line-strong: #b8c0bd;
+  --accent: #1c5a8a;
+  --accent-soft: #e2ecf4;
+  --accent-ink: #ffffff;
+  --good: #0ca30c;
+  --good-ink: #0b6b0b;
+  --good-soft: #e3f3e3;
+  --crit: #d03b3b;
+  --crit-ink: #a62828;
+  --crit-soft: #f8e4e2;
+  --warn: #fab219;
+  --warn-ink: #7a5300;
+  --warn-soft: #fdf1d6;
+  --grid: #e1e4e2;
+  --font-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --font-body: "Barlow", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1214; --surface: #171b1e; --surface-2: #1d2226; --ink: #eceeed; --ink-2: #b6bdc0; --muted: #858e93;
+    --line: #2a3135; --line-strong: #3b4448; --accent: #6aa8dc; --accent-soft: #1b2f40; --accent-ink: #0c1620;
+    --good: #0ca30c; --good-ink: #4fc44f; --good-soft: #142a16; --crit: #e05555; --crit-ink: #f08a84; --crit-soft: #3a1c1b;
+    --warn: #fab219; --warn-ink: #f6c862; --warn-soft: #362a10; --grid: #252b2f; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1214; --surface: #171b1e; --surface-2: #1d2226; --ink: #eceeed; --ink-2: #b6bdc0; --muted: #858e93;
+  --line: #2a3135; --line-strong: #3b4448; --accent: #6aa8dc; --accent-soft: #1b2f40; --accent-ink: #0c1620;
+  --good: #0ca30c; --good-ink: #4fc44f; --good-soft: #142a16; --crit: #e05555; --crit-ink: #f08a84; --crit-soft: #3a1c1b;
+  --warn: #fab219; --warn-ink: #f6c862; --warn-soft: #362a10; --grid: #252b2f; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 48px;
+}
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 20px; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 700; margin: 0; text-wrap: balance; letter-spacing: 0.01em; }
+h1 { font-size: clamp(28px, 4vw, 38px); line-height: 1.05; }
+h2 { font-size: 22px; line-height: 1.15; }
+.eyebrow { font-family: var(--font-data); font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.num { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Encabezado tipo formato */
+.formato { background: var(--surface); border: 1px solid var(--line-strong); border-radius: 6px; display: grid; grid-template-columns: auto 1fr auto; }
+.formato > div { padding: 14px 18px; min-width: 0; }
+.formato .codigo { border-right: 1px solid var(--line-strong); display: grid; align-content: center; gap: 2px; }
+.formato .codigo b { font-family: var(--font-display); font-size: 30px; line-height: 1; color: var(--accent); }
+.formato .titulo { display: grid; gap: 6px; align-content: center; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--ink-2); font-size: 14px; }
+.meta strong { color: var(--ink); font-weight: 600; }
+.formato .fc { border-left: 1px solid var(--line-strong); display: grid; align-content: center; gap: 4px; }
+.fc-field { display: flex; align-items: baseline; gap: 6px; }
+.fc-field input { width: 72px; font-family: var(--font-data); font-size: 22px; font-weight: 500; padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-2); }
+.fc-field span { color: var(--ink-2); font-size: 13px; }
+.storage-note { font-size: 12.5px; color: var(--muted); }
+@media (max-width: 720px) {
+  .formato { grid-template-columns: 1fr; }
+  .formato .codigo, .formato .fc { border: 0; }
+  .formato .codigo { border-bottom: 1px solid var(--line); grid-auto-flow: column; justify-content: start; gap: 12px; align-items: baseline; }
+  .formato .fc { border-top: 1px solid var(--line); }
+}
+
+/* Carga */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 18px; display: grid; gap: 14px; min-width: 0; }
+.panel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+.panel-head p { margin: 0; color: var(--ink-2); max-width: 70ch; }
+.drop { border: 1.5px dashed var(--line-strong); border-radius: 6px; padding: 22px 18px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; background: var(--surface-2); transition: border-color .15s, background .15s; }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop p { margin: 0; flex: 1 1 280px; color: var(--ink-2); }
+.drop p b { color: var(--ink); }
+.btn { border: 1px solid var(--line-strong); background: var(--surface); padding: 8px 14px; border-radius: 4px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+.btn:hover { border-color: var(--ink-2); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.danger { color: var(--crit-ink); border-color: var(--crit); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn.small { padding: 4px 10px; font-size: 13.5px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+.review { border-top: 1px solid var(--line); padding-top: 14px; display: grid; gap: 14px; }
+.review-sum { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--surface-2); border: 1px solid var(--line); white-space: nowrap; }
+.chip i { font-style: normal; font-family: var(--font-data); }
+.chip.new { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
+.chip.upd { background: var(--good-soft); border-color: transparent; color: var(--good-ink); }
+.chip.alert { background: var(--warn-soft); border-color: transparent; color: var(--warn-ink); }
+.chip.diff { background: var(--crit-soft); border-color: transparent; color: var(--crit-ink); }
+.review-list { display: grid; gap: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.ritem { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 4px 14px; padding: 10px 14px; border-top: 1px solid var(--line); }
+.ritem:first-child { border-top: 0; }
+.ritem .tag { font-family: var(--font-data); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; padding-top: 3px; }
+.ritem .tag.new { color: var(--accent); }
+.ritem .tag.upd { color: var(--good-ink); }
+.ritem .tag.same { color: var(--muted); }
+.ritem h3 { font-size: 18px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.ritem h3 small { font-family: var(--font-body); font-weight: 400; font-size: 13.5px; color: var(--ink-2); }
+.changes { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 4px; font-size: 14px; }
+.changes span { white-space: nowrap; }
+.changes .lbl { color: var(--muted); }
+.alerts { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 13.5px; color: var(--warn-ink); }
+.alerts li::before { content: "▲ "; font-size: 10px; }
+.diffrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13.5px; color: var(--crit-ink); margin-top: 4px; }
+.diffrow label { display: inline-flex; gap: 6px; align-items: center; color: var(--ink); }
+.review-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.review-actions .hint { color: var(--muted); font-size: 13.5px; }
+.err { color: var(--crit-ink); background: var(--crit-soft); padding: 10px 14px; border-radius: 4px; margin: 0; }
+
+/* Resumen */
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; display: grid; gap: 2px; align-content: start; }
+.tile .v { font-family: var(--font-display); font-size: 34px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.tile .v small { font-family: var(--font-body); font-size: 14px; font-weight: 500; color: var(--ink-2); margin-left: 4px; }
+.tile .d { color: var(--ink-2); font-size: 13.5px; }
+.bar-split { display: flex; height: 6px; border-radius: 3px; overflow: hidden; gap: 2px; margin-top: 8px; background: var(--surface); }
+.bar-split span { display: block; height: 100%; }
+@media (max-width: 860px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Gráfico */
+.chart-scroll { overflow-x: auto; position: relative; }
+.chart-scroll svg { display: block; }
+.chart-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13.5px; color: var(--ink-2); }
+.chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+.sw.line { height: 0; border-top: 2px dashed var(--crit); border-radius: 0; width: 18px; }
+.sw.line.solid { border-top: 2px solid var(--ink-2); }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--surface); padding: 8px 10px; border-radius: 4px; font-size: 13px; line-height: 1.4; white-space: nowrap; z-index: 5; transform: translate(-50%, calc(-100% - 10px)); }
+.tip b { font-family: var(--font-display); font-size: 16px; }
+
+/* Tabla */
+.filters { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 4px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: 5px 12px; font-size: 14px; border-left: 1px solid var(--line); }
+.seg button:first-child { border-left: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.search { flex: 1 1 200px; max-width: 320px; padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface); }
+.filters .spacer { flex: 1 1 auto; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; min-width: 980px; font-size: 14px; }
+thead th { position: sticky; top: 0; background: var(--surface-2); text-align: left; font-family: var(--font-data); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-2); font-weight: 500; padding: 9px 10px; border-bottom: 1px solid var(--line-strong); white-space: nowrap; }
+th.r, td.r { text-align: right; }
+tbody td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tbody tr.row { cursor: pointer; }
+tbody tr.row:hover td { background: var(--surface-2); }
+tbody tr.row.open td { background: var(--accent-soft); }
+td.m { font-family: var(--font-display); font-weight: 700; font-size: 16px; white-space: nowrap; }
+td.loc { max-width: 280px; }
+td.num, td .num { font-family: var(--font-data); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.empty { color: var(--muted); }
+.below { color: var(--crit-ink); }
+.pill { display: inline-flex; align-items: center; gap: 5px; padding: 1px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.pill.ok { background: var(--good-soft); color: var(--good-ink); }
+.pill.no { background: var(--crit-soft); color: var(--crit-ink); }
+.pill.wait { background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--line); }
+.flag { color: var(--warn-ink); font-size: 12px; margin-left: 4px; }
+tr.detail td { background: var(--surface-2); padding: 14px 16px 18px; }
+.det { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; }
+@media (max-width: 760px) { .det { grid-template-columns: 1fr; } }
+.det h4 { margin: 0 0 6px; font-family: var(--font-data); font-size: 11px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.probetas { display: grid; gap: 10px; }
+.probetas .grp { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+.probetas .grp > b { font-family: var(--font-display); font-size: 15px; min-width: 52px; }
+.probetas .p { font-family: var(--font-data); font-size: 13px; background: var(--surface); border: 1px solid var(--line); border-radius: 3px; padding: 1px 7px; }
+.probetas .note { font-size: 12.5px; color: var(--muted); flex-basis: 100%; }
+.det textarea { width: 100%; min-height: 72px; border: 1px solid var(--line-strong); border-radius: 4px; padding: 8px; background: var(--surface); resize: vertical; }
+.det .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; align-items: center; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 13.5px; margin-bottom: 10px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; }
+.empty-state { padding: 28px 18px; text-align: center; color: var(--ink-2); }
+
+.hist { display: grid; gap: 0; font-size: 13.5px; }
+.hist div { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 7px 0; border-top: 1px solid var(--line); }
+.hist div:first-child { border-top: 0; }
+.hist .when { font-family: var(--font-data); color: var(--muted); min-width: 140px; }
+
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--surface); padding: 10px 16px; border-radius: 4px; font-weight: 500; z-index: 20; max-width: calc(100% - 32px); }
+footer { color: var(--muted); font-size: 13px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="formato">
+    <div class="codigo"><span class="eyebrow">Formato</span><b>RT-037</b></div>
+    <div class="titulo">
+      <h1>Control de resistencias de mortero</h1>
+      <div class="meta">
+        <span>Obra: <strong id="obraNombre">Cuidadela del parque T4</strong></span>
+        <span>Código lab: <strong id="obraCodigo">—</strong></span>
+        <span class="storage-note" id="storageNote">Conectando con el registro…</span>
+      </div>
+    </div>
+    <div class="fc">
+      <label class="eyebrow" for="fcInput">f'c especificado</label>
+      <div class="fc-field"><input id="fcInput" type="number" min="1" step="1" value="125"><span>kg/cm² · 0,85 f'c = <b class="num" id="fc85">106,25</b></span></div>
+    </div>
+  </header>
+
+  <section class="panel" aria-labelledby="cargaTitulo">
+    <div class="panel-head">
+      <h2 id="cargaTitulo">Cargar resultados del laboratorio</h2>
+      <p>Sube el archivo que descargas del laboratorio (.xlsx, .xlsm o .csv con columnas label, fechaMuestreo, edad y Resistencia Kg/Cm2) o el propio RT-037. Las muestras se agrupan por Nº de muestra y fecha de muestreo.</p>
+    </div>
+    <div class="drop" id="drop">
+      <p><b>Arrastra el archivo aquí</b> o elígelo desde tu equipo. Nada se guarda hasta que revises los cambios y pulses Aplicar.</p>
+      <label class="btn primary" for="fileInput">Elegir archivo</label>
+      <input class="sr" id="fileInput" type="file" accept=".xlsx,.xlsm,.xls,.csv">
+    </div>
+    <div id="review" hidden></div>
+  </section>
+
+  <section class="tiles" id="tiles" aria-label="Resumen"></section>
+
+  <section class="panel" aria-labelledby="graficoTitulo">
+    <div class="panel-head">
+      <h2 id="graficoTitulo">Resistencia a 28 días por muestra</h2>
+      <div class="chart-legend" id="chartLegend"></div>
+    </div>
+    <div class="chart-scroll" id="chart"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="tablaTitulo">
+    <div class="panel-head"><h2 id="tablaTitulo">Planilla de control</h2></div>
+    <div class="filters">
+      <div class="seg" role="group" aria-label="Serie" id="fSerie"></div>
+      <div class="seg" role="group" aria-label="Estado" id="fEstado"></div>
+      <input class="search" id="fQ" type="search" placeholder="Buscar muestra o localización" aria-label="Buscar muestra o localización">
+      <span class="spacer"></span>
+      <button class="btn" id="exportBtn" type="button" hidden>Descargar Excel</button>
+    </div>
+    <div class="table-wrap" id="tableWrap"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="histTitulo">
+    <div class="panel-head"><h2 id="histTitulo">Historial de cargas</h2></div>
+    <div class="hist" id="hist"></div>
+  </section>
+
+  <footer>Reglas de cálculo: edad ≤ 14 d → R7d · 15–42 d → R28d · &gt; 42 d → R56d. Promedio de las probetas de cada grupo, redondeado a 2 decimales. Cumple si alguna resistencia supera 0,85 f'c; no cumple si hay R28d y ninguna lo supera (misma lógica de la columna K del RT-037).</footer>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(() => {
+  "use strict";
+  const $ = (s) => document.querySelector(s);
+  const LS_KEY = "rt037-control-v1";
+  const AGES = [["r7", "7 d"], ["r28", "28 d"], ["r56", "56 d"]];
+
+  const state = {
+    muestras: new Map(), obra: { obra: "", fc: 125, codigo: "" }, historial: [],
+    mode: "loading", canWrite: true, plan: null, abierto: null, confirmDel: null,
+    filtro: { serie: "todas", estado: "todos", q: "" },
+  };
+  let db = null, downloads = null;
+
+  // ---------- utilidades ----------
+  const norm = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[´`’‘]/g, "'").toLowerCase().replace(/\s+/g, " ").trim();
+  const round2 = (x) => Math.round(x * 100) / 100;
+  const avg = (a) => a.length ? round2(a.reduce((s, x) => s + x, 0) / a.length) : null;
+  const fmt = (v) => v == null || v === "" ? "—" : Number(v).toLocaleString("es-CO", { maximumFractionDigits: 2 });
+  const num = (v) => {
+    if (v == null || v === "") return null;
+    if (typeof v === "number") return isFinite(v) ? v : null;
+    const s = String(v).trim().replace(/\s/g, "");
+    if (!s) return null;
+    const t = /,\d{1,3}$/.test(s) && !/\.\d/.test(s) ? s.replace(/\./g, "").replace(",", ".") : s.replace(/,/g, "");
+    const n = Number(t);
+    return isFinite(n) ? n : null;
+  };
+  const pad = (n) => String(n).padStart(2, "0");
+  const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  function isoDate(v) {
+    if (v == null || v === "") return null;
+    if (v instanceof Date && !isNaN(v)) return ymd(new Date(v.getTime() + 12 * 3600e3));
+    if (typeof v === "number" && v > 20000 && v < 80000) { const d = new Date(Math.round((v - 25569) * 864e5)); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; }
+    const s = String(v).trim();
+    let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
+    m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/);
+    if (m) {
+      let a = +m[1], b = +m[2], y = +m[3]; if (y < 100) y += 2000;
+      // El laboratorio exporta M/D/AAAA; si el primer número pasa de 12 es D/M/AAAA.
+      const [mo, da] = a > 12 ? [b, a] : [a, b];
+      return `${y}-${pad(mo)}-${pad(da)}`;
+    }
+    return null;
+  }
+  const dmy = (iso) => iso ? iso.split("-").reverse().join("/") : "—";
+  const muestraId = (s) => String(s ?? "").toUpperCase().replace(/\s+/g, "").trim();
+  const docId = (m, f) => `${m.replace(/[^A-Za-z0-9_-]/g, "-")}__${f}`;
+  const fcDe = (codigo) => { const m = String(codigo ?? "").match(/(\d+(?:[.,]\d+)?)/); return m ? Number(m[1].replace(",", ".")) : null; };
+  const bucket = (edad) => edad <= 14 ? "r7" : edad <= 42 ? "r28" : "r56";
+  const serieDe = (m) => (String(m).match(/^[A-Z]+/) || ["?"])[0];
+  const natCmp = (a, b) => a.localeCompare(b, "es", { numeric: true });
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const hoy = () => dmy(ymd(new Date()));
+
+  function fcMuestra(m) { return fcDe(m.codigo) ?? state.obra.fc; }
+  function estado(m) {
+    const thr = fcMuestra(m) * 0.85;
+    const vals = [m.r7, m.r28, m.r56];
+    if (vals.every((v) => v == null)) return "wait";
+    if (vals.some((v) => v != null && v > thr)) return "ok";
+    return m.r28 != null ? "no" : "wait";
+  }
+  const ESTADO_TXT = { ok: "✓ Cumple", no: "✕ No cumple", wait: "◷ Pendiente" };
+
+  let toastT;
+  function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 4200); }
+
+  // ---------- almacenamiento ----------
+  function loadLocal() {
+    try {
+      const raw = localStorage.getItem(LS_KEY); if (!raw) return;
+      const d = JSON.parse(raw);
+      state.muestras = new Map(Object.entries(d.muestras || {}));
+      if (d.obra) state.obra = { ...state.obra, ...d.obra };
+      state.historial = d.historial || [];
+    } catch (e) { /* sin almacenamiento */ }
+  }
+  function saveLocal() {
+    try { localStorage.setItem(LS_KEY, JSON.stringify({ muestras: Object.fromEntries(state.muestras), obra: state.obra, historial: state.historial })); } catch (e) { /* sin almacenamiento */ }
+  }
+  async function putMuestra(id, data) {
+    state.muestras.set(id, data);
+    if (db) await db.collection("muestras").doc(id).set(data); else saveLocal();
+  }
+  async function delMuestra(id) {
+    state.muestras.delete(id);
+    if (db) await db.collection("muestras").doc(id).delete(); else saveLocal();
+  }
+  async function putObra() {
+    if (db) await db.doc("config/obra").set({ ...state.obra }); else saveLocal();
+  }
+  async function addHist(h) {
+    state.historial.unshift(h);
+    if (db) await db.collection("historial").doc(h.id).set(h); else { state.historial = state.historial.slice(0, 50); saveLocal(); }
+  }
+
+  async function init() {
+    renderAll();
+    const c = window.claude && typeof window.claude.use === "function" ? window.claude : null;
+    if (c) {
+      try { db = await c.use("db"); } catch (e) { db = null; }
+      try { downloads = await c.use("downloads"); } catch (e) { downloads = null; }
+      try {
+        const user = await c.use("user");
+        const w = user ? await user.can("data.write") : null;
+        if (w === false) state.canWrite = false;
+      } catch (e) { /* sin datos de usuario */ }
+    }
+    $("#exportBtn").hidden = !downloads;
+    if (db) {
+      state.mode = "db";
+      db.collection("muestras").onSnapshot((snap) => {
+        state.muestras = new Map(snap.docs.map((d) => [d.id, d.data()]));
+        renderAll();
+      }, () => { state.mode = "error"; renderStorage(); });
+      db.doc("config/obra").onSnapshot((snap) => {
+        if (snap.exists) { state.obra = { ...state.obra, ...snap.data() }; renderAll(); }
+      });
+      db.collection("historial").orderBy("ts", "desc").limit(30).onSnapshot((snap) => {
+        state.historial = snap.docs.map((d) => d.data()); renderHist();
+      });
+    } else {
+      state.mode = "local"; loadLocal(); renderAll();
+    }
+  }
+
+  // ---------- lectura de archivos ----------
+  function findHeader(rows, test, maxRow = 60) {
+    for (let r = 0; r < Math.min(rows.length, maxRow); r++) {
+      const cells = (rows[r] || []).map(norm);
+      if (test(cells)) return { r, cells };
+    }
+    return null;
+  }
+  const colOf = (cells, ...preds) => { for (const p of preds) { const i = cells.findIndex(p); if (i >= 0) return i; } return -1; };
+
+  function parseResultados(rows) {
+    const h = findHeader(rows, (c) => c.includes("edad") && c.some((x) => x.includes("resistencia") && x.includes("kg")));
+    if (!h) return null;
+    const c = h.cells;
+    const ix = {
+      m: colOf(c, (x) => x === "label", (x) => x.startsWith("muestra"), (x) => x.startsWith("n")),
+      loc: colOf(c, (x) => x.startsWith("localizacion")),
+      rem: colOf(c, (x) => x.startsWith("remision")),
+      fm: colOf(c, (x) => x === "fechamuestreo", (x) => x.includes("muestreo")),
+      fr: colOf(c, (x) => x === "fecharotura", (x) => x.includes("rotura")),
+      cod: colOf(c, (x) => x === "codigomezcla", (x) => x.includes("mezcla")),
+      obra: colOf(c, (x) => x === "codigoobra", (x) => x.includes("obra")),
+      edad: colOf(c, (x) => x === "edad"),
+      res: colOf(c, (x) => x.includes("resistencia") && x.includes("kg")),
+    };
+    if (ix.m < 0 || ix.fm < 0) return null;
+    const grupos = new Map(); let filas = 0, codigoObra = "";
+    for (let r = h.r + 1; r < rows.length; r++) {
+      const row = rows[r] || [];
+      const m = muestraId(row[ix.m]); const f = isoDate(row[ix.fm]);
+      const edad = num(row[ix.edad]); const res = num(row[ix.res]);
+      if (!m || !f || edad == null || res == null) continue;
+      filas++;
+      if (!codigoObra && ix.obra >= 0 && row[ix.obra]) codigoObra = String(row[ix.obra]).trim();
+      const k = docId(m, f);
+      if (!grupos.has(k)) grupos.set(k, { muestra: m, fecha: f, locs: new Set(), rems: new Set(), cods: new Set(), ensayos: [] });
+      const g = grupos.get(k);
+      if (ix.loc >= 0 && row[ix.loc]) g.locs.add(String(row[ix.loc]).trim());
+      if (ix.rem >= 0 && row[ix.rem]) g.rems.add(String(row[ix.rem]).trim());
+      if (ix.cod >= 0 && row[ix.cod]) g.cods.add(String(row[ix.cod]).trim());
+      g.ensayos.push([edad, res, ix.fr >= 0 ? isoDate(row[ix.fr]) : null]);
+    }
+    const recs = new Map();
+    for (const [k, g] of grupos) {
+      const rec = { muestra: g.muestra, fecha: g.fecha, codigo: [...g.cods][0] || "", localizacion: [...g.locs][0] || "", remision: [...g.rems][0] || "", ensayos: g.ensayos, alertas: [] };
+      for (const [b] of AGES) {
+        const vals = g.ensayos.filter((e) => bucket(e[0]) === b).map((e) => e[1]);
+        rec[b] = avg(vals); rec["n" + b.slice(1)] = vals.length || null;
+      }
+      if (g.locs.size > 1) rec.alertas.push(`Localización distinta entre probetas: ${[...g.locs].join(" / ")}`);
+      if (g.cods.size > 1) rec.alertas.push(`Código de mezcla distinto entre probetas: ${[...g.cods].join(" / ")}`);
+      recs.set(k, rec);
+    }
+    return { recs, filas, codigoObra };
+  }
+
+  function parseControl(rows) {
+    const h = findHeader(rows, (c) => c.some((x) => x.startsWith("muestra n")) && c.some((x) => x.includes("fecha de fundida")), 200);
+    if (!h) return null;
+    const c = h.cells;
+    const ix = {
+      m: colOf(c, (x) => x.startsWith("muestra n")), cod: colOf(c, (x) => x.includes("mezcla")),
+      loc: colOf(c, (x) => x.startsWith("localizacion")), rem: colOf(c, (x) => x.startsWith("remision")),
+      f: colOf(c, (x) => x.includes("fecha de fundida")),
+      r7: colOf(c, (x) => /^r ?7 ?d/.test(x)), r28: colOf(c, (x) => /^r ?28 ?d/.test(x)), r56: colOf(c, (x) => /^r ?56 ?d/.test(x)),
+      obs: colOf(c, (x) => x.startsWith("observaciones")),
+    };
+    const recs = new Map(); let filas = 0;
+    for (let r = h.r + 1; r < rows.length; r++) {
+      const row = rows[r] || [];
+      const m = muestraId(row[ix.m]); const f = isoDate(row[ix.f]);
+      if (!m || !f) continue;
+      filas++;
+      const rec = {
+        muestra: m, fecha: f, codigo: ix.cod >= 0 && row[ix.cod] ? String(row[ix.cod]).trim() : "",
+        localizacion: ix.loc >= 0 && row[ix.loc] ? String(row[ix.loc]).trim() : "",
+        remision: ix.rem >= 0 && row[ix.rem] ? String(row[ix.rem]).trim() : "",
+        r7: ix.r7 >= 0 ? num(row[ix.r7]) : null, r28: ix.r28 >= 0 ? num(row[ix.r28]) : null, r56: ix.r56 >= 0 ? num(row[ix.r56]) : null,
+        obs: ix.obs >= 0 && row[ix.obs] ? String(row[ix.obs]).trim() : "", ensayos: [], alertas: [],
+      };
+      for (const b of ["r7", "r28", "r56"]) if (rec[b] != null) rec[b] = round2(rec[b]);
+      recs.set(docId(m, f), rec);
+    }
+    // Datos de la obra en el encabezado del formato
+    let obra = "", fc = null;
+    for (let r = 0; r < h.r; r++) {
+      const row = rows[r] || [];
+      row.forEach((v, i) => {
+        const n = norm(v);
+        if (n.startsWith("obra")) { const nx = row.slice(i + 1).find((x) => x != null && String(x).trim()); if (nx && !obra) obra = String(nx).trim(); }
+        if (/^f'c ?=/.test(n)) { const nx = row.slice(i + 1).map(num).find((x) => x != null); if (nx && !fc) fc = nx; }
+      });
+    }
+    return { recs, filas, obra, fc };
+  }
+
+  function sameEnsayo(a, b) { return a[0] === b[0] && a[1] === b[1] && (a[2] || "") === (b[2] || ""); }
+  function mergeEnsayos(a = [], b = []) { const out = a.slice(); for (const e of b) if (!out.some((x) => sameEnsayo(x, e))) out.push(e); return out; }
+
+  function combine(into, rec) {
+    const k = docId(rec.muestra, rec.fecha);
+    const cur = into.get(k);
+    if (!cur) { into.set(k, rec); return; }
+    for (const f of ["codigo", "localizacion", "remision", "obs", "r7", "r28", "r56", "n7", "n28", "n56"]) if ((cur[f] == null || cur[f] === "") && rec[f] != null && rec[f] !== "") cur[f] = rec[f];
+    cur.ensayos = mergeEnsayos(cur.ensayos, rec.ensayos);
+    cur.alertas = [...new Set([...(cur.alertas || []), ...(rec.alertas || [])])];
+  }
+
+  async function readFile(file) {
+    const buf = await file.arrayBuffer();
+    const isCsv = /\.csv$/i.test(file.name);
+    const wb = isCsv ? XLSX.read(new TextDecoder().decode(buf), { type: "string", raw: true }) : XLSX.read(buf, { type: "array", cellDates: true });
+    const incoming = new Map(); const fuentes = []; let obraInfo = {};
+    const controls = [], results = [];
+    for (const name of wb.SheetNames) {
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null, blankrows: true });
+      const ctl = parseControl(rows); if (ctl && ctl.filas) { controls.push(ctl); fuentes.push(`${name}: ${ctl.filas} filas de control`); continue; }
+      const res = parseResultados(rows); if (res && res.filas) { results.push(res); fuentes.push(`${name}: ${res.filas} ensayos`); }
+    }
+    for (const c of controls) { for (const r of c.recs.values()) combine(incoming, r); if (c.obra) obraInfo.obra = c.obra; if (c.fc) obraInfo.fc = c.fc; }
+    for (const r of results) { for (const x of r.recs.values()) combine(incoming, x); if (r.codigoObra) obraInfo.codigo = r.codigoObra; }
+    return { incoming, fuentes, obraInfo, archivo: file.name, filas: results.reduce((s, r) => s + r.filas, 0) };
+  }
+
+  // ---------- plan de actualización ----------
+  function planImport(parsed) {
+    const items = [];
+    const porNumero = new Map();
+    for (const m of state.muestras.values()) { if (!porNumero.has(m.muestra)) porNumero.set(m.muestra, []); porNumero.get(m.muestra).push(m.fecha); }
+    for (const [k, rec] of parsed.incoming) {
+      const cur = state.muestras.get(k);
+      const alertas = [...(rec.alertas || [])];
+      const fc = fcDe(rec.codigo || cur?.codigo);
+      if (fc != null && fc !== state.obra.fc) alertas.push(`f'c de la mezcla (${fc} kg/cm²) distinto al f'c de la obra (${state.obra.fc}). Se evalúa con ${fc}.`);
+      for (const [b, lbl] of AGES) { const n = rec["n" + b.slice(1)]; if (n === 1) alertas.push(`Solo 1 probeta a ${lbl}.`); }
+      if (!cur) {
+        const otras = (porNumero.get(rec.muestra) || []).filter((f) => f !== rec.fecha);
+        if (otras.length) alertas.push(`Ya existe ${rec.muestra} con otra fecha (${otras.map(dmy).join(", ")}). Revisa si es la misma muestra.`);
+        items.push({ k, tipo: "nueva", rec, cambios: AGES.filter(([b]) => rec[b] != null).map(([b]) => ({ b, antes: null, despues: rec[b] })), difs: [], alertas });
+        continue;
+      }
+      const cambios = [], difs = [];
+      for (const [b] of AGES) {
+        if (rec[b] == null) continue;
+        if (cur[b] == null) cambios.push({ b, antes: null, despues: rec[b] });
+        else if (Math.abs(cur[b] - rec[b]) > 0.011) difs.push({ b, antes: cur[b], despues: rec[b], reemplazar: false });
+      }
+      const nuevosEnsayos = (rec.ensayos || []).filter((e) => !(cur.ensayos || []).some((x) => sameEnsayo(x, e))).length;
+      const llenaTexto = ["codigo", "localizacion", "remision"].some((f) => !cur[f] && rec[f]);
+      const tipo = cambios.length || difs.length ? "actualiza" : "igual";
+      items.push({ k, tipo, rec, cambios, difs, alertas: tipo === "igual" ? [] : alertas, nuevosEnsayos, llenaTexto });
+    }
+    const orden = { nueva: 0, actualiza: 1, igual: 2 };
+    items.sort((a, b) => orden[a.tipo] - orden[b.tipo] || a.rec.fecha.localeCompare(b.rec.fecha) || natCmp(a.rec.muestra, b.rec.muestra));
+    return { ...parsed, items };
+  }
+
+  function traza(n, rec, archivo) {
+    const partes = [n ? `Promedio de ${n} probeta${n === 1 ? "" : "s"}` : "Valor tomado del formato"];
+    if (rec.remision) partes.push(`Remisión: ${rec.remision}`);
+    partes.push(`Muestreo: ${dmy(rec.fecha)}`, `Cargado desde ${archivo} el ${hoy()}`);
+    return partes.join(" — ");
+  }
+
+  async function applyPlan() {
+    const p = state.plan; if (!p) return;
+    const btn = $("#applyBtn"); if (btn) { btn.disabled = true; btn.textContent = "Guardando…"; }
+    const now = new Date().toISOString();
+    let nuevas = [], actualizadas = [];
+    try {
+      if (p.obraInfo.obra && !state.obra.obra) state.obra.obra = p.obraInfo.obra;
+      if (p.obraInfo.codigo && !state.obra.codigo) state.obra.codigo = p.obraInfo.codigo;
+      if (p.obraInfo.obra || p.obraInfo.codigo) await putObra();
+      for (const it of p.items) {
+        const rec = it.rec;
+        if (it.tipo === "nueva") {
+          const d = { muestra: rec.muestra, fecha: rec.fecha, codigo: rec.codigo || "", localizacion: rec.localizacion || "", remision: rec.remision || "", obs: rec.obs || "", ensayos: rec.ensayos || [], notas: {}, creado: now, actualizado: now };
+          for (const [b] of AGES) { const nk = "n" + b.slice(1); d[b] = rec[b] ?? null; d[nk] = rec[nk] ?? null; if (rec[b] != null) d.notas[b] = traza(rec[nk], rec, p.archivo); }
+          await putMuestra(it.k, d); nuevas.push(rec.muestra); continue;
+        }
+        const cur = state.muestras.get(it.k); if (!cur) continue;
+        const d = JSON.parse(JSON.stringify(cur)); d.notas = d.notas || {};
+        let changed = false;
+        const aplicar = [...it.cambios, ...it.difs.filter((x) => x.reemplazar)];
+        for (const c of aplicar) { const nk = "n" + c.b.slice(1); d[c.b] = c.despues; d[nk] = rec[nk] ?? null; d.notas[c.b] = traza(rec[nk], rec, p.archivo) + (c.antes != null ? ` (antes ${fmt(c.antes)})` : ""); changed = true; }
+        for (const f of ["codigo", "localizacion", "remision"]) if (!d[f] && rec[f]) { d[f] = rec[f]; changed = true; }
+        const ens = mergeEnsayos(d.ensayos, rec.ensayos); if (ens.length !== (d.ensayos || []).length) { d.ensayos = ens; changed = true; }
+        if (!changed) continue;
+        d.actualizado = now; await putMuestra(it.k, d);
+        if (aplicar.length) actualizadas.push(rec.muestra);
+      }
+      const id = "h" + Date.now();
+      await addHist({ id, ts: now, archivo: p.archivo, filas: p.filas, nuevas, actualizadas, sinCambios: p.items.filter((i) => i.tipo === "igual").length });
+      state.plan = null; renderAll();
+      toast(nuevas.length || actualizadas.length ? `Listo: ${nuevas.length} muestra${nuevas.length === 1 ? "" : "s"} nueva${nuevas.length === 1 ? "" : "s"} y ${actualizadas.length} actualizada${actualizadas.length === 1 ? "" : "s"}.` : "Listo: no había resultados nuevos.");
+    } catch (e) {
+      if (btn) { btn.disabled = false; btn.textContent = "Aplicar cambios"; }
+      const msg = e && e.code === "quota_exceeded" ? "El registro llegó a su límite de tamaño. Descarga el Excel y elimina muestras antiguas." : e && e.code === "invalid_argument" ? "No tienes permiso para modificar este registro. Pide acceso de colaborador al propietario." : "No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.";
+      toast(msg); renderAll();
+    }
+  }
+
+  // ---------- render ----------
+  function renderStorage() {
+    const n = $("#storageNote");
+    n.textContent = state.mode === "db" ? (state.canWrite ? "Registro compartido · se guarda en línea" : "Solo lectura")
+      : state.mode === "local" ? "Modo local · los datos se guardan solo en este navegador"
+      : state.mode === "error" ? "Sin conexión con el registro" : "Conectando con el registro…";
+  }
+  function renderHeader() {
+    $("#obraNombre").textContent = state.obra.obra || "Sin nombre";
+    $("#obraCodigo").textContent = state.obra.codigo || "—";
+    const inp = $("#fcInput");
+    if (document.activeElement !== inp) inp.value = state.obra.fc;
+    inp.disabled = !state.canWrite;
+    $("#fc85").textContent = fmt(round2(state.obra.fc * 0.85));
+    renderStorage();
+  }
+
+  function renderReview() {
+    const box = $("#review"); const p = state.plan;
+    if (!p) { box.hidden = true; box.innerHTML = ""; return; }
+    box.hidden = false; box.className = "review";
+    if (p.error) { box.innerHTML = `<p class="err">${esc(p.error)}</p><div class="review-actions"><button class="btn" type="button" data-act="discard">Cerrar</button></div>`; return; }
+    const cnt = (t) => p.items.filter((i) => i.tipo === t).length;
+    const nAlert = p.items.filter((i) => i.alertas.length).length;
+    const nDif = p.items.reduce((s, i) => s + i.difs.length, 0);
+    const visibles = p.items.filter((i) => i.tipo !== "igual");
+    const iguales = p.items.filter((i) => i.tipo === "igual");
+    const ch = (c) => `<span><span class="lbl">${c.b === "r7" ? "R7d" : c.b === "r28" ? "R28d" : "R56d"}</span> <b class="num">${fmt(c.despues)}</b></span>`;
+    const lista = visibles.map((it, idx) => {
+      const r = it.rec;
+      const difs = it.difs.map((d, j) => `<div class="diffrow">${d.b.toUpperCase().replace("R", "R")}d registrado <b class="num">${fmt(d.antes)}</b>, el archivo trae <b class="num">${fmt(d.despues)}</b>
+        <label><input type="checkbox" data-dif="${esc(it.k)}|${j}" ${d.reemplazar ? "checked" : ""}> Reemplazar</label></div>`).join("");
+      return `<div class="ritem"><span class="tag ${it.tipo === "nueva" ? "new" : "upd"}">${it.tipo === "nueva" ? "Nueva" : "Resultados"}</span>
+        <div><h3>${esc(r.muestra)} <small>${dmy(r.fecha)} · ${esc(r.localizacion || "sin localización")}${r.remision ? " · " + esc(r.remision) : ""}</small></h3>
+        ${it.cambios.length ? `<div class="changes">${it.cambios.map(ch).join("")}</div>` : ""}${difs}
+        ${it.alertas.length ? `<ul class="alerts">${it.alertas.map((a) => `<li>${esc(a)}</li>`).join("")}</ul>` : ""}</div></div>`;
+    }).join("");
+    const nada = !visibles.length;
+    box.innerHTML = `
+      <div class="panel-head"><h2>Revisión: ${esc(p.archivo)}</h2><span class="eyebrow">${esc(p.fuentes.join(" · ") || "sin datos reconocidos")}</span></div>
+      <div class="review-sum">
+        <span class="chip new"><i>${cnt("nueva")}</i> nuevas</span>
+        <span class="chip upd"><i>${cnt("actualiza")}</i> con resultados nuevos</span>
+        <span class="chip"><i>${iguales.length}</i> sin cambios</span>
+        ${nDif ? `<span class="chip diff"><i>${nDif}</i> valores distintos</span>` : ""}
+        ${nAlert ? `<span class="chip alert"><i>${nAlert}</i> con alertas</span>` : ""}
+      </div>
+      ${nada ? `<p style="margin:0;color:var(--ink-2)">Todas las muestras del archivo ya están en la planilla con los mismos valores.</p>` : `<div class="review-list">${lista}</div>`}
+      ${iguales.length ? `<p class="eyebrow" style="margin:0">Sin cambios: ${iguales.map((i) => esc(i.rec.muestra)).join(", ")}</p>` : ""}
+      <div class="review-actions">
+        <button class="btn primary" id="applyBtn" type="button" data-act="apply" ${!state.canWrite ? "disabled" : ""}>${nada ? "Guardar detalle de probetas" : "Aplicar cambios"}</button>
+        <button class="btn" type="button" data-act="discard">Descartar</button>
+        <span class="hint">${state.canWrite ? "Los valores ya registrados no se tocan, salvo los que marques como Reemplazar." : "Tienes acceso de solo lectura."}</span>
+      </div>`;
+  }
+
+  function filtradas() {
+    const { serie, estado: est, q } = state.filtro; const nq = norm(q);
+    return [...state.muestras.entries()].map(([id, m]) => ({ id, ...m, _e: estado(m) }))
+      .filter((m) => (serie === "todas" || serieDe(m.muestra) === serie) && (est === "todos" || m._e === est) && (!nq || norm(m.muestra + " " + m.localizacion + " " + (m.remision || "")).includes(nq)))
+      .sort((a, b) => b.fecha.localeCompare(a.fecha) || natCmp(b.muestra, a.muestra));
+  }
+
+  function renderTiles(rows) {
+    const con28 = rows.filter((m) => m.r28 != null);
+    const x = avg(con28.map((m) => m.r28));
+    const ok = rows.filter((m) => m._e === "ok").length, no = rows.filter((m) => m._e === "no").length, wait = rows.filter((m) => m._e === "wait").length;
+    const tot = rows.length || 1;
+    const min = con28.length ? con28.reduce((a, b) => (b.r28 < a.r28 ? b : a)) : null;
+    $("#tiles").innerHTML = `
+      <div class="tile"><span class="eyebrow">Muestras</span><span class="v">${rows.length}</span><span class="d">${con28.length} con ensayo a 28 d</span></div>
+      <div class="tile"><span class="eyebrow">Promedio general R28d (X)</span><span class="v">${fmt(x)}<small>kg/cm²</small></span><span class="d">${x != null ? `${fmt(round2((x / state.obra.fc) * 100))} % del f'c de ${state.obra.fc}` : "Sin ensayos a 28 d"}</span></div>
+      <div class="tile"><span class="eyebrow">Cumplimiento 0,85 f'c</span><span class="v">${ok}<small>cumplen</small></span><span class="d">${no} no cumplen · ${wait} pendientes</span>
+        <div class="bar-split" aria-hidden="true"><span style="width:${(ok / tot) * 100}%;background:var(--good)"></span><span style="width:${(no / tot) * 100}%;background:var(--crit)"></span><span style="width:${(wait / tot) * 100}%;background:var(--line-strong)"></span></div></div>
+      <div class="tile"><span class="eyebrow">Menor R28d</span><span class="v">${min ? fmt(min.r28) : "—"}<small>${min ? "kg/cm²" : ""}</small></span><span class="d">${min ? `${esc(min.muestra)} · ${dmy(min.fecha)}` : "Sin ensayos a 28 d"}</span></div>`;
+  }
+
+  function renderChart(rows) {
+    const data = rows.filter((m) => m.r28 != null).sort((a, b) => a.fecha.localeCompare(b.fecha) || natCmp(a.muestra, b.muestra));
+    const box = $("#chart");
+    const thr = state.obra.fc * 0.85;
+    $("#chartLegend").innerHTML = `<span><i class="sw" style="background:var(--accent)"></i>Cumple</span><span><i class="sw" style="background:var(--crit)"></i>No cumple</span><span><i class="sw line"></i>0,85 f'c = ${fmt(round2(thr))}</span><span><i class="sw line solid"></i>f'c = ${state.obra.fc}</span>`;
+    if (!data.length) { box.innerHTML = `<div class="empty-state">No hay muestras con ensayo a 28 días en esta vista.</div>`; return; }
+    const H = 260, padL = 44, padR = 12, padT = 14, padB = 46;
+    const bw = 16, gap = 8;
+    const W = Math.max(box.clientWidth || 600, padL + padR + data.length * (bw + gap));
+    const maxV = Math.max(state.obra.fc * 1.1, ...data.map((d) => d.r28));
+    const step = maxV > 300 ? 100 : 50; const top = Math.ceil(maxV / step) * step;
+    const y = (v) => padT + (H - padT - padB) * (1 - v / top);
+    const slot = (W - padL - padR) / data.length; const bwr = Math.min(28, Math.max(10, slot - gap));
+    let g = "";
+    for (let v = 0; v <= top; v += step) g += `<line x1="${padL}" x2="${W - padR}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)" stroke-width="1"/><text x="${padL - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--muted)" font-family="IBM Plex Mono, monospace">${v}</text>`;
+    let bars = "";
+    data.forEach((d, i) => {
+      const cx = padL + slot * i + slot / 2; const x0 = cx - bwr / 2; const yt = y(d.r28); const h = y(0) - yt;
+      const fcM = fcMuestra(d); const bad = d.r28 <= fcM * 0.85;
+      const r = Math.min(4, bwr / 2, h);
+      bars += `<g class="b" data-i="${i}"><rect x="${cx - slot / 2}" y="${padT}" width="${slot}" height="${H - padT - padB}" fill="transparent"/>
+        <path d="M${x0},${y(0)} V${yt + r} Q${x0},${yt} ${x0 + r},${yt} H${x0 + bwr - r} Q${x0 + bwr},${yt} ${x0 + bwr},${yt + r} V${y(0)} Z" fill="${bad ? "var(--crit)" : "var(--accent)"}"/>
+        <text x="${cx}" y="${H - padB + 14}" text-anchor="end" transform="rotate(-50 ${cx} ${H - padB + 14})" font-size="10.5" fill="var(--ink-2)" font-family="IBM Plex Mono, monospace">${esc(d.muestra)}</text></g>`;
+    });
+    const lines = `<line x1="${padL}" x2="${W - padR}" y1="${y(thr)}" y2="${y(thr)}" stroke="var(--crit)" stroke-width="2" stroke-dasharray="6 4"/>
+      <line x1="${padL}" x2="${W - padR}" y1="${y(state.obra.fc)}" y2="${y(state.obra.fc)}" stroke="var(--ink-2)" stroke-width="1.5"/>
+      <line x1="${padL}" x2="${W - padR}" y1="${y(0)}" y2="${y(0)}" stroke="var(--line-strong)" stroke-width="1"/>`;
+    box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Resistencia a 28 días de ${data.length} muestras frente a 0,85 f'c">${g}${bars}${lines}</svg><div class="tip" hidden></div>`;
+    const tip = box.querySelector(".tip");
+    box.querySelectorAll("g.b").forEach((el) => {
+      el.addEventListener("mouseenter", () => {
+        const d = data[+el.dataset.i]; const fcM = fcMuestra(d);
+        tip.innerHTML = `<b>${esc(d.muestra)}</b> · ${dmy(d.fecha)}<br>R28d <span class="num">${fmt(d.r28)}</span> kg/cm² · ${fmt(round2((d.r28 / fcM) * 100))} % de f'c<br>${esc(d.localizacion || "")}`;
+        const i = +el.dataset.i; tip.style.left = Math.min(Math.max(padL + slot * i + slot / 2, 110), W - 110) + "px"; tip.style.top = y(d.r28) + "px"; tip.hidden = false;
+      });
+      el.addEventListener("mouseleave", () => (tip.hidden = true));
+    });
+  }
+
+  function renderFilters() {
+    const series = [...new Set([...state.muestras.values()].map((m) => serieDe(m.muestra)))].sort();
+    const segS = [["todas", "Todas"], ...series.map((s) => [s, `Serie ${s}`])];
+    $("#fSerie").innerHTML = segS.map(([v, l]) => `<button type="button" data-serie="${esc(v)}" aria-pressed="${state.filtro.serie === v}">${esc(l)}</button>`).join("");
+    const segE = [["todos", "Todos"], ["ok", "Cumple"], ["no", "No cumple"], ["wait", "Pendiente"]];
+    $("#fEstado").innerHTML = segE.map(([v, l]) => `<button type="button" data-estado="${v}" aria-pressed="${state.filtro.estado === v}">${l}</button>`).join("");
+  }
+
+  function probetasHtml(m) {
+    return AGES.map(([b, lbl]) => {
+      const ens = (m.ensayos || []).filter((e) => bucket(e[0]) === b);
+      const nota = m.notas && m.notas[b];
+      if (!ens.length && m[b] == null) return "";
+      return `<div class="grp"><b>${lbl}</b>${ens.length ? ens.map((e) => `<span class="p" title="Edad ${e[0]} d${e[2] ? " · rotura " + dmy(e[2]) : ""}">${fmt(e[1])}</span>`).join("") : `<span class="p">${fmt(m[b])}</span><span class="note">Sin detalle de probetas (valor del formato).</span>`}
+        ${nota ? `<span class="note">${esc(nota)}</span>` : ""}</div>`;
+    }).join("") || `<span class="note">Sin ensayos todavía.</span>`;
+  }
+
+  function renderTable(rows) {
+    const wrap = $("#tableWrap");
+    if (!state.muestras.size) {
+      wrap.innerHTML = `<div class="empty-state">${state.mode === "loading" ? "Cargando planilla…" : "Aún no hay muestras. Carga el RT-037 o el archivo del laboratorio para empezar."}</div>`; return;
+    }
+    if (!rows.length) { wrap.innerHTML = `<div class="empty-state">Ninguna muestra coincide con el filtro.</div>`; return; }
+    const cell = (v, thr) => v == null ? `<td class="num r empty">—</td>` : `<td class="num r${v <= thr ? " below" : ""}">${fmt(v)}</td>`;
+    const body = rows.map((m) => {
+      const fcM = fcMuestra(m); const thr = round2(fcM * 0.85); const open = state.abierto === m.id;
+      const fcFlag = fcDe(m.codigo) != null && fcDe(m.codigo) !== state.obra.fc;
+      let tr = `<tr class="row${open ? " open" : ""}" data-id="${esc(m.id)}" tabindex="0" aria-expanded="${open}">
+        <td class="m">${esc(m.muestra)}</td><td>${esc(m.codigo || "—")}${fcFlag ? `<span class="flag" title="f'c distinto al de la obra">▲</span>` : ""}</td>
+        <td class="loc">${esc(m.localizacion || "—")}</td><td class="num">${dmy(m.fecha)}</td>
+        ${cell(m.r7, thr)}${cell(m.r28, thr)}<td class="num r">${fmt(fcM)}</td><td class="num r">${fmt(thr)}</td>${cell(m.r56, thr)}
+        <td><span class="pill ${m._e}">${ESTADO_TXT[m._e]}</span></td><td class="loc">${esc(m.obs || "")}</td></tr>`;
+      if (open) {
+        const conf = state.confirmDel === m.id;
+        tr += `<tr class="detail"><td colspan="11"><div class="det">
+          <div><h4>Probetas ensayadas (kg/cm²)</h4><div class="probetas">${probetasHtml(m)}</div></div>
+          <div><dl class="kv"><dt>Remisión</dt><dd>${esc(m.remision || "—")}</dd><dt>Actualizado</dt><dd>${m.actualizado ? new Date(m.actualizado).toLocaleString("es-CO") : "—"}</dd></dl>
+            <label class="eyebrow" for="obs-${esc(m.id)}">Observaciones (acciones tomadas)</label>
+            <textarea id="obs-${esc(m.id)}" data-obs="${esc(m.id)}" ${state.canWrite ? "" : "disabled"}>${esc(m.obs || "")}</textarea>
+            ${state.canWrite ? `<div class="acts"><button class="btn small primary" type="button" data-save="${esc(m.id)}">Guardar observación</button>
+              ${conf ? `<span>¿Eliminar ${esc(m.muestra)} del ${dmy(m.fecha)}?</span><button class="btn small danger" type="button" data-del="${esc(m.id)}">Sí, eliminar</button><button class="btn small" type="button" data-nodel>Cancelar</button>`
+                : `<button class="btn small danger" type="button" data-askdel="${esc(m.id)}">Eliminar muestra</button>`}</div>` : ""}
+          </div></div></td></tr>`;
+      }
+      return tr;
+    }).join("");
+    wrap.innerHTML = `<table><thead><tr><th>Muestra Nº</th><th>Código mezcla</th><th>Localización</th><th>Fecha de fundida</th><th class="r">R 7d</th><th class="r">R 28d</th><th class="r">f'c</th><th class="r">0,85 f'c</th><th class="r">R 56d</th><th>¿Cumple 0,85 f'c?</th><th>Observaciones</th></tr></thead><tbody>${body}</tbody></table>`;
+  }
+
+  function renderHist() {
+    const h = state.historial;
+    $("#hist").innerHTML = h.length ? h.map((x) => `<div><span class="when">${new Date(x.ts).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })}</span>
+      <span><b>${esc(x.archivo)}</b> · ${x.filas || 0} ensayos leídos</span>
+      <span>${(x.nuevas || []).length} nuevas${(x.nuevas || []).length ? ` (${esc(x.nuevas.join(", "))})` : ""}</span>
+      <span>${(x.actualizadas || []).length} actualizadas${(x.actualizadas || []).length ? ` (${esc(x.actualizadas.join(", "))})` : ""}</span></div>`).join("")
+      : `<div><span style="color:var(--ink-2)">Todavía no se ha cargado ningún archivo desde esta página.</span></div>`;
+  }
+
+  function renderAll() {
+    renderHeader(); renderReview(); renderFilters();
+    const rows = filtradas();
+    renderTiles(rows); renderChart(rows); renderTable(rows); renderHist();
+  }
+
+  // ---------- exportar ----------
+  async function exportar() {
+    if (!downloads) return;
+    const rows = [...state.muestras.values()].sort((a, b) => a.fecha.localeCompare(b.fecha) || natCmp(a.muestra, b.muestra));
+    const fc = state.obra.fc;
+    const aoa = [["RT-037 CONTROL DE RESISTENCIAS DE MORTERO"], ["OBRA:", state.obra.obra || "", "", "f'c =", fc, "(kg/cm2)"], [],
+      ["Muestra Nº", "Código Mezcla", "Localizacion", "Fecha de fundida", "R 7d (kg/cm2)", "R 28d (kg/cm2)", "f'c  (kg/cm2)", "0,85f´c", "R 56d (kg/cm2)", "Cumple 0,85f`c?", "Observaciones (Acciones tomadas)", "Remisión"]];
+    for (const m of rows) {
+      const f = fcMuestra(m); const e = estado(m);
+      const [y, mo, d] = m.fecha.split("-").map(Number);
+      aoa.push([m.muestra, m.codigo || "", m.localizacion || "", new Date(Date.UTC(y, mo - 1, d)), m.r7 ?? "", m.r28 ?? "", f, round2(f * 0.85), m.r56 ?? "", e === "ok" ? "Cumple" : e === "no" ? "NO Cumple" : "", m.obs || "", m.remision || ""]);
+    }
+    const ws = XLSX.utils.aoa_to_sheet(aoa, { cellDates: true, dateNF: "dd/mm/yyyy" });
+    ws["!cols"] = [10, 14, 44, 14, 12, 12, 10, 10, 12, 14, 40, 16].map((w) => ({ wch: w }));
+    const ens = [["Muestra Nº", "Fecha de muestreo", "Edad (días)", "Grupo", "Resistencia (kg/cm2)", "Fecha de rotura", "Remisión", "Localización"]];
+    for (const m of rows) for (const e of m.ensayos || []) ens.push([m.muestra, dmy(m.fecha), e[0], { r7: "R7d", r28: "R28d", r56: "R56d" }[bucket(e[0])], e[1], e[2] ? dmy(e[2]) : "", m.remision || "", m.localizacion || ""]);
+    const ws2 = XLSX.utils.aoa_to_sheet(ens); ws2["!cols"] = [10, 16, 10, 8, 18, 14, 16, 44].map((w) => ({ wch: w }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "CONTROL");
+    XLSX.utils.book_append_sheet(wb, ws2, "PROBETAS");
+    const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    try {
+      await downloads.save({ filename: `RT-037_control_${ymd(new Date())}.xlsx`, data: new Blob([out]) });
+      toast("Excel descargado.");
+    } catch (e) {
+      if (e && e.code === "declined") return;
+      if (e && e.code === "rate_limited") { toast("Ya hay una descarga pendiente de confirmar."); return; }
+      toast("La descarga no está disponible en esta vista.");
+    }
+  }
+
+  // ---------- eventos ----------
+  async function handleFile(file) {
+    if (!file) return;
+    if (typeof XLSX === "undefined") { state.plan = { error: "No se pudo cargar el lector de Excel. Recarga la página e inténtalo de nuevo.", items: [] }; renderReview(); return; }
+    try {
+      const parsed = await readFile(file);
+      if (!parsed.incoming.size) {
+        state.plan = { error: `No encontré resultados en "${file.name}". El archivo debe tener una hoja con las columnas label, fechaMuestreo, edad y Resistencia Kg/Cm2 (formato del laboratorio) o la hoja CONTROL del RT-037.`, items: [] };
+      } else state.plan = planImport(parsed);
+    } catch (e) {
+      state.plan = { error: `No se pudo leer "${file.name}". Verifica que sea un archivo .xlsx, .xlsm o .csv y que no esté protegido con contraseña.`, items: [] };
+    }
+    renderReview();
+    $("#review").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  const drop = $("#drop");
+  ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", (e) => handleFile(e.dataTransfer.files[0]));
+  $("#fileInput").addEventListener("change", (e) => { handleFile(e.target.files[0]); e.target.value = ""; });
+
+  $("#review").addEventListener("click", (e) => {
+    const a = e.target.closest("[data-act]"); if (!a) return;
+    if (a.dataset.act === "apply") applyPlan();
+    if (a.dataset.act === "discard") { state.plan = null; renderReview(); }
+  });
+  $("#review").addEventListener("change", (e) => {
+    const c = e.target.closest("[data-dif]"); if (!c || !state.plan) return;
+    const [k, j] = c.dataset.dif.split("|"); const it = state.plan.items.find((i) => i.k === k); if (it) it.difs[+j].reemplazar = c.checked;
+  });
+
+  let fcT;
+  $("#fcInput").addEventListener("input", (e) => {
+    const v = num(e.target.value); if (!v || v <= 0) return;
+    state.obra.fc = v; clearTimeout(fcT);
+    renderAll();
+    fcT = setTimeout(() => { putObra().catch(() => toast("No se pudo guardar el f'c.")); }, 700);
+  });
+
+  document.addEventListener("click", (e) => {
+    const s = e.target.closest("[data-serie]"); if (s) { state.filtro.serie = s.dataset.serie; renderAll(); return; }
+    const t = e.target.closest("[data-estado]"); if (t) { state.filtro.estado = t.dataset.estado; renderAll(); return; }
+  });
+  $("#fQ").addEventListener("input", (e) => { state.filtro.q = e.target.value; const rows = filtradas(); renderTiles(rows); renderChart(rows); renderTable(rows); });
+  $("#exportBtn").addEventListener("click", exportar);
+
+  const tw = $("#tableWrap");
+  function toggleRow(id) { state.abierto = state.abierto === id ? null : id; state.confirmDel = null; renderTable(filtradas()); }
+  tw.addEventListener("click", async (e) => {
+    const sv = e.target.closest("[data-save]");
+    if (sv) {
+      const id = sv.dataset.save; const m = state.muestras.get(id); const ta = tw.querySelector(`[data-obs="${CSS.escape(id)}"]`);
+      if (m && ta) { try { await putMuestra(id, { ...m, obs: ta.value.trim(), actualizado: new Date().toISOString() }); toast("Observación guardada."); renderTable(filtradas()); } catch (er) { toast("No se pudo guardar la observación."); } }
+      return;
+    }
+    const ask = e.target.closest("[data-askdel]"); if (ask) { state.confirmDel = ask.dataset.askdel; renderTable(filtradas()); return; }
+    if (e.target.closest("[data-nodel]")) { state.confirmDel = null; renderTable(filtradas()); return; }
+    const del = e.target.closest("[data-del]");
+    if (del) { const id = del.dataset.del; try { await delMuestra(id); state.abierto = null; state.confirmDel = null; renderAll(); toast("Muestra eliminada."); } catch (er) { toast("No se pudo eliminar la muestra."); } return; }
+    const row = e.target.closest("tr.row"); if (row) toggleRow(row.dataset.id);
+  });
+  tw.addEventListener("keydown", (e) => { const row = e.target.closest("tr.row"); if (row && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); toggleRow(row.dataset.id); } });
+  let rT; window.addEventListener("resize", () => { clearTimeout(rT); rT = setTimeout(() => renderChart(filtradas()), 150); });
+
+  init();
+})();
+</script>
