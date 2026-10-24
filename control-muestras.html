@@ -123,7 +123,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .card-hd p { margin: 4px 0 0; color: var(--ink-2); max-width: 70ch; }
 .eyebrow { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .dash { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; align-items: start; }
-.s8 { grid-column: span 8; } .s4 { grid-column: span 4; } .s12 { grid-column: span 12; }
+.s8 { grid-column: span 8; } .s7 { grid-column: span 7; } .s5 { grid-column: span 5; } .s4 { grid-column: span 4; } .s12 { grid-column: span 12; }
 
 /* KPIs */
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
@@ -188,6 +188,23 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
 .diffrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 12.5px; color: var(--crit-ink); margin-top: 6px; }
 .diffrow label { display: inline-flex; gap: 6px; align-items: center; color: var(--ink); cursor: pointer; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(170px, 100%), 1fr)); gap: 12px; }
+.fgrid .wide { grid-column: 1 / -1; }
+label.fld { display: flex; flex-direction: column; gap: 5px; min-width: 0; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.inp { font-family: var(--font-body); font-size: 14px; letter-spacing: 0; text-transform: none; width: 100%; background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 11px; min-width: 0; color: var(--ink); }
+.inp:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.inp.bad { border-color: var(--crit); }
+.ptable { margin-top: 14px; }
+.ptable table { min-width: 520px; }
+.ptable td { padding: 6px 8px; }
+.ptable td:first-child { width: 44px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ptable .inp { padding: 6px 9px; }
+.ptable td.n .inp { text-align: right; }
+.mprev { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--ink-2); }
+.mprev b { font-family: var(--font-display); font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.icon-btn { border: 0; background: none; cursor: pointer; color: var(--muted); padding: 4px 8px; border-radius: 8px; font-size: 13px; }
+.icon-btn:hover { color: var(--crit); background: var(--surface-3); }
+.icon-btn:disabled { opacity: .35; cursor: not-allowed; background: none; }
 .note { padding: 12px 14px; border-radius: 12px; background: var(--accent-soft); font-size: 13px; border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); }
 .err { padding: 12px 14px; border-radius: 12px; background: var(--crit-bg); color: var(--crit-ink); border: 1px solid color-mix(in srgb, var(--crit) 40%, transparent); margin: 0; }
 
@@ -273,7 +290,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
   .topbar .t-logo.logo-a { display: var(--logo-azul); }
 }
 @media (max-width: 980px) {
-  .s8, .s4 { grid-column: span 12; }
+  .s8, .s7, .s5, .s4 { grid-column: span 12; }
   .det { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 760px) {
@@ -394,6 +411,11 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const hoy = () => dmy(ymd(new Date()));
   const plural = (n, s, p) => `${n} ${n === 1 ? s : p}`;
+  const addDays = (iso, n) => { const [y, m, d] = iso.split("-").map(Number); return ymd(new Date(y, m - 1, d + n)); };
+  const MANUAL = "Registro manual";
+  const probetaVacia = (edad = "7") => ({ edad, res: "", fr: "" });
+  const nuevoManual = (base = {}) => ({ muestra: "", fecha: base.fecha || ymd(new Date()), codigo: base.codigo || `${state.obra.fc} kg/CM2`, localizacion: "", remision: base.remision || "", probetas: [probetaVacia(), probetaVacia(), probetaVacia()], error: "", bad: [] });
+  state.manual = nuevoManual();
 
   function fcMuestra(m) { return fcDe(m.codigo) ?? state.obra.fc; }
   function estado(m) {
@@ -670,7 +692,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
   function traza(n, rec, archivo) {
     const partes = [n ? `Promedio de ${plural(n, "probeta", "probetas")}` : "Valor tomado del formato"];
     if (rec.remision) partes.push(`Remisión: ${rec.remision}`);
-    partes.push(`Muestreo: ${dmy(rec.fecha)}`, `Cargado desde ${archivo} el ${hoy()}`);
+    partes.push(`Muestreo: ${dmy(rec.fecha)}`, archivo === MANUAL ? `Registrado manualmente el ${hoy()}` : `Cargado desde ${archivo} el ${hoy()}`);
     return partes.join(" — ");
   }
 
@@ -702,6 +724,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
         if (aplicar.length) actualizadas.push(rec.muestra);
       }
       await addHist({ id: "h" + Date.now(), ts: now, archivo: p.archivo, filas: p.filas, nuevas, actualizadas, sinCambios: p.items.filter((i) => i.tipo === "igual").length });
+      if (p.manual) state.manual = nuevoManual(state.manual);
       state.plan = null; renderAll();
       toast(nuevas.length || actualizadas.length ? `Cambios aplicados: ${plural(nuevas.length, "muestra nueva", "muestras nuevas")} y ${plural(actualizadas.length, "actualizada", "actualizadas")}.` : "Cambios aplicados: no había resultados nuevos.");
     } catch (e) {
@@ -838,7 +861,7 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       }).join("");
       const nada = !visibles.length;
       review = `<section class="card" aria-labelledby="rTit">
-        <div class="card-hd"><div><h2 id="rTit">Revisión de ${esc(p.archivo)}</h2><p class="hint">${esc(p.fuentes.join(" · ") || "sin datos reconocidos")}</p></div></div>
+        <div class="card-hd"><div><h2 id="rTit">${p.manual ? "Revisión del registro manual" : "Revisión de " + esc(p.archivo)}</h2><p class="hint">${esc(p.fuentes.join(" · ") || "sin datos reconocidos")}</p></div></div>
         <div class="sumrow" style="margin-bottom:14px">
           <span class="pill big new">${plural(cnt("nueva"), "nueva", "nuevas")}</span>
           <span class="pill big good">${cnt("actualiza")} con resultados nuevos</span>
@@ -854,8 +877,9 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
           <span class="hint">${state.canWrite ? "Los valores ya registrados no se tocan, salvo los que marques como Reemplazar." : "Tienes acceso de solo lectura."}</span>
         </div></section>`;
     }
-    main.innerHTML = `<div class="stack">
-      <section class="card" aria-labelledby="cTit">
+    main.innerHTML = `<div class="stack">${review}
+      <div class="dash">
+      <section class="card s5" aria-labelledby="cTit">
         <div class="card-hd"><div><h2 id="cTit">Archivo del laboratorio</h2><p>Sube el archivo que descargas del laboratorio (.xlsx, .xlsm o .csv con las columnas label, fechaMuestreo, edad y Resistencia Kg/Cm2) o el propio RT-037. Nada se guarda hasta que revises los cambios.</p></div></div>
         <div class="drop" id="drop" role="button" tabindex="0" data-act="pick">${ICON.cargar}<b>Arrastra el archivo aquí</b><span>o haz clic para elegirlo desde tu equipo</span></div>
         <div class="rules">
@@ -863,7 +887,85 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
           <div><span class="eyebrow">Edad 15 a 42 días</span><b>R28d</b><span class="hint">Define si cumple 0,85 f'c</span></div>
           <div><span class="eyebrow">Edad &gt; 42 días</span><b>R56d</b><span class="hint">Ensayo de verificación</span></div>
         </div>
-      </section>${review}</div>`;
+      </section>
+      ${manualHtml()}
+      </div></div>`;
+  }
+
+  // ---------- Registro manual ----------
+  function manualPrev() {
+    const m = state.manual;
+    const ens = m.probetas.map((p) => [num(p.edad), num(p.res)]).filter((e) => e[0] != null && e[1] != null && e[0] > 0);
+    if (!ens.length) return `<span class="hint">Escribe la edad y la resistencia de cada probeta para ver los promedios.</span>`;
+    return AGES.map(([b, lbl]) => {
+      const v = ens.filter((e) => bucket(e[0]) === b).map((e) => e[1]);
+      return v.length ? `<span>R${lbl.replace(" d", "d")} <b>${fmt(avg(v))}</b> <span class="hint">(${plural(v.length, "probeta", "probetas")})</span></span>` : "";
+    }).join("");
+  }
+  function manualHtml() {
+    const m = state.manual; const bad = new Set(m.bad || []);
+    const vals = [...state.muestras.values()];
+    const uniq = (f) => [...new Set(vals.map((x) => x[f]).filter(Boolean))].sort(natCmp);
+    const dl = (id, list) => `<datalist id="${id}">${list.map((v) => `<option value="${esc(v)}"></option>`).join("")}</datalist>`;
+    const fld = (f, label, extra = "", cls = "") => `<label class="fld${cls}">${label}<input class="inp${bad.has(f) ? " bad" : ""}" data-m="${f}" value="${esc(m[f])}" ${extra}></label>`;
+    const rows = m.probetas.map((p, i) => `<tr>
+      <td>${i + 1}</td>
+      <td class="n"><input class="inp${bad.has("edad" + i) ? " bad" : ""}" type="number" min="1" step="1" inputmode="numeric" data-p="${i}|edad" value="${esc(p.edad)}" list="dlEdades" aria-label="Edad de la probeta ${i + 1} en días"></td>
+      <td class="n"><input class="inp${bad.has("res" + i) ? " bad" : ""}" type="number" min="0" step="0.1" inputmode="decimal" data-p="${i}|res" value="${esc(p.res)}" placeholder="kg/cm²" aria-label="Resistencia de la probeta ${i + 1} en kg/cm²"></td>
+      <td><input class="inp" type="date" data-p="${i}|fr" value="${esc(p.fr)}" aria-label="Fecha de rotura de la probeta ${i + 1}"></td>
+      <td><button class="icon-btn" type="button" data-act="mDel" data-i="${i}" aria-label="Quitar probeta ${i + 1}" ${m.probetas.length < 2 ? "disabled" : ""}>✕</button></td></tr>`).join("");
+    return `<section class="card s7" aria-labelledby="mTit">
+      <div class="card-hd"><div><h2 id="mTit">Registro manual</h2><p>Para resultados que llegan en PDF, por correo o en papel. Escribe cada probeta ensayada; la página promedia por edad y te muestra la revisión antes de guardar.</p></div></div>
+      <div class="fgrid">
+        ${fld("muestra", "Muestra Nº", 'list="dlMuestras" autocomplete="off" placeholder="M31"')}
+        ${fld("fecha", "Fecha de muestreo", 'type="date"')}
+        ${fld("codigo", "Código de mezcla", 'list="dlCodigos" autocomplete="off"')}
+        ${fld("remision", "Remisión", 'list="dlRemisiones" autocomplete="off"')}
+        ${fld("localizacion", "Localización", 'list="dlLoc" autocomplete="off" placeholder="Fachada piso 12"', " wide")}
+      </div>
+      ${dl("dlMuestras", uniq("muestra"))}${dl("dlCodigos", uniq("codigo"))}${dl("dlRemisiones", uniq("remision"))}${dl("dlLoc", uniq("localizacion"))}${dl("dlEdades", ["7", "28", "56"])}
+      <div class="tbl-wrap ptable"><table><thead><tr><th>Nº</th><th class="n">Edad (días)</th><th class="n">Resistencia (kg/cm²)</th><th>Fecha de rotura</th><th><span class="sr">Quitar</span></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="actions" style="margin-top:10px"><button class="btn sm" type="button" data-act="mAdd">+ Agregar probeta</button><div class="mprev" id="mPrev">${manualPrev()}</div></div>
+      ${m.error ? `<p class="err" id="mErr" style="margin-top:12px">${esc(m.error)}</p>` : ""}
+      <div class="actions" style="margin-top:14px"><button class="btn primary" type="button" data-act="mReview" ${state.canWrite ? "" : "disabled"}>Revisar resultados</button><button class="btn" type="button" data-act="mClear">Limpiar</button>
+        <span class="hint">Si dejas vacía la fecha de rotura se toma la fecha de muestreo más la edad.</span></div>
+    </section>`;
+  }
+  // Al escribir un Nº que ya existe, se completan los datos de su registro más reciente.
+  function manualAutofill() {
+    const m = state.manual; const id = muestraId(m.muestra); if (!id) return false;
+    const prev = [...state.muestras.values()].filter((x) => x.muestra === id).sort((a, b) => b.fecha.localeCompare(a.fecha))[0];
+    if (!prev || m.localizacion) return false;
+    Object.assign(m, { fecha: prev.fecha, codigo: prev.codigo || m.codigo, localizacion: prev.localizacion || "", remision: prev.remision || m.remision });
+    const tiene = AGES.filter(([b]) => prev[b] != null).map(([b]) => b);
+    const falta = AGES.find(([b]) => !tiene.includes(b));
+    if (falta && m.probetas.every((p) => !p.res)) m.probetas.forEach((p) => (p.edad = falta[1].replace(" d", "")));
+    return true;
+  }
+  function manualReview() {
+    const m = state.manual; const bad = [];
+    const id = muestraId(m.muestra);
+    if (!id) bad.push("muestra");
+    if (!isoDate(m.fecha)) bad.push("fecha");
+    const ens = [];
+    m.probetas.forEach((p, i) => {
+      const e = num(p.edad), r = num(p.res);
+      if (String(p.res).trim() === "") return;
+      if (e == null || e <= 0 || e > 365) bad.push("edad" + i);
+      if (r == null || r <= 0 || r > 2000) bad.push("res" + i);
+      if (e > 0 && r > 0) ens.push([e, round2(r), isoDate(p.fr) || (isoDate(m.fecha) ? addDays(isoDate(m.fecha), e) : null)]);
+    });
+    m.bad = bad;
+    if (bad.length || !ens.length) {
+      m.error = !ens.length && !bad.some((b) => /^(edad|res)/.test(b)) ? "Escribe al menos una probeta con su edad y resistencia." : "Revisa los campos marcados en rojo: falta el Nº de muestra, la fecha o algún valor de probeta no es válido.";
+      renderMain(); return;
+    }
+    m.error = "";
+    const fecha = isoDate(m.fecha);
+    const rec = { muestra: id, fecha, codigo: m.codigo.trim(), localizacion: m.localizacion.trim(), remision: m.remision.trim(), ensayos: ens, alertas: [] };
+    for (const [b] of AGES) { const v = ens.filter((e) => bucket(e[0]) === b).map((e) => e[1]); rec[b] = avg(v); rec["n" + b.slice(1)] = v.length || null; }
+    state.plan = planImport({ incoming: new Map([[docId(id, fecha), rec]]), fuentes: [`${plural(ens.length, "probeta", "probetas")} escritas a mano`], obraInfo: {}, archivo: MANUAL, filas: ens.length, manual: true });
+    renderAll(); window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   // ---------- Planilla ----------
@@ -994,12 +1096,17 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
     const row = e.target.closest("tr.row"); if (row && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); toggleRow(row.dataset.id); }
   });
   main.addEventListener("change", (e) => {
+    if (e.target.dataset.m === "muestra") { if (manualAutofill()) { renderMain(); const n = main.querySelector('[data-p="0|res"]'); if (n) n.focus(); } return; }
     const c = e.target.closest("[data-dif]"); if (!c || !state.plan) return;
     const [k, j] = c.dataset.dif.split("|"); const it = state.plan.items.find((i) => i.k === k); if (it) it.difs[+j].reemplazar = c.checked;
   });
   main.addEventListener("input", (e) => {
-    if (e.target.id !== "fQ") return;
-    state.filtro.q = e.target.value; $("#tablaBox").innerHTML = tablaHtml(filtradas());
+    const t = e.target;
+    if ((t.dataset.m || t.dataset.p) && state.manual.error) { state.manual.error = ""; const er = $("#mErr"); if (er) er.remove(); }
+    if (t.dataset.m) { state.manual[t.dataset.m] = t.value; t.classList.remove("bad"); return; }
+    if (t.dataset.p) { const [i, f] = t.dataset.p.split("|"); state.manual.probetas[+i][f] = t.value; t.classList.remove("bad"); const pv = $("#mPrev"); if (pv) pv.innerHTML = manualPrev(); return; }
+    if (t.id !== "fQ") return;
+    state.filtro.q = t.value; $("#tablaBox").innerHTML = tablaHtml(filtradas());
   });
   main.addEventListener("mousemove", (e) => {
     const h = e.target.closest && e.target.closest(".chart .hit"); if (!h) { hideTip(); return; }
@@ -1024,6 +1131,10 @@ tr.detail > td { background: var(--surface-2); padding: 14px 16px 18px; }
       if (act === "apply") applyPlan(a);
       if (act === "discard") { state.plan = null; renderAll(); }
       if (act === "export") exportar();
+      if (act === "mAdd") { const ps = state.manual.probetas; ps.push(probetaVacia(ps.length ? ps[ps.length - 1].edad : "7")); renderMain(); const n = main.querySelector(`[data-p="${ps.length - 1}|res"]`); if (n) n.focus(); }
+      if (act === "mDel") { state.manual.probetas.splice(+a.dataset.i, 1); state.manual.bad = []; renderMain(); }
+      if (act === "mReview") manualReview();
+      if (act === "mClear") { state.manual = nuevoManual(state.manual); renderMain(); }
       return;
     }
     const sv = e.target.closest("[data-save]");
